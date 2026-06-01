@@ -1,4 +1,6 @@
-#include <bits/stdc++.h>
+#include <array>
+#include <cstdint>
+#include <iostream>
 
 using namespace std;
 
