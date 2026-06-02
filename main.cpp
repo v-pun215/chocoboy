@@ -73,17 +73,24 @@ struct memory {
 
 struct cpu { // 8-bit custom Sharp LR35902 processor
     enum registerNames {
-        AF,
-        BC,
-        DE,
-        HL,
-        SP, // stack pointer
-        PC // program counter
+        A,
+        B,C,
+        D,E,
+        H,L,
     };
 
-    array<uint16_t, 6> registers = {};
+    array<uint8_t, 7> registers = {};
+    uint16_t PC = 0; // program counter
+    uint16_t SP = 0; //stack pointer
+
+
+    uint16_t fetch(memory mem) {
+        auto value = mem.read(PC);
+        PC+=1;
+        return value;
+    }
 };
 
 int main() {
-    return 0;
+    
 }
