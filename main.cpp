@@ -62,7 +62,20 @@ struct memory {
         } else if (address >= 0xFEA0 && address <= 0xFEFF) { // not usable
             //pass
         } else if (address >= 0xFF00 && address <= 0xFF7F) { // implment io ranges
-            //pass (TO DO)
+            
+            if (address == 0xFF00) {
+                // joypad input 
+            } else if (address >= 0xFF01 && address <=0xFF02) {
+                //serial transfer
+                cout << "SERIAL: " << content <<'\n';
+            } else if (address == 0xFF0F) {
+                // interrupts
+            } else if (address >= 0xFF10 && address <= 0xFF26) {
+                //audio
+            } else if (address >= 0xFF30 && address <= 0xFF3F) {
+                // wave pattern
+            } //... TO DO
+
         } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
             HRAM[address-0xFF80] = content;
         } else if (address==0xFFFF) {
@@ -87,7 +100,7 @@ struct memory {
             );
             if (buffer.size()<32768) { // less than 32 KiB
                 cout << "error: ROM invalid - too small\n";
-            } else if (buffer.size()<32768) {
+            } else if (buffer.size()>32768) {
                 cout << "error: ROM too big for current implementation\n";
                 throw runtime_error("cannot copy ROM into memory");
             }
@@ -97,6 +110,8 @@ struct memory {
                 buffer.end(),
                 ROM.begin()
             );
+
+            cout << "ROM loaded successfully!\n";
         } catch (const exception& e){
             cerr << "Caught: " << e.what() << '\n';
         }
@@ -139,5 +154,13 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 };
 
 int main() {
+    cpu gb_cpu;
+    memory mem;
     
+    mem.loadROM("roms/cpu_instrs.gb");
+    cout <<"STEP1\n";
+    while (true) {
+        gb_cpu.decode(gb_cpu.fetch(mem));
+    }
+
 }
