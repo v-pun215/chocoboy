@@ -253,6 +253,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                     break;
 
                     case 3:
+                    // LD SP, n16
                     SP = n16;
                     break;
                 }
@@ -378,6 +379,32 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 registers[A] = mem.read(address);
                 cycles= 8;
                 break;  
+            }
+
+            case 0x88 ... 0x8F: {
+                uint8_t val =0;
+                if (opcode != 0x8E) { // ADC A, r8
+                    auto r8 = opcode  & 0x07;
+                    val = registers[r8];
+                    cycles=4;
+                } else { // ADC A, [HL]
+                    val = mem.read(HL());
+                    cycles=8;
+                }
+                auto result = registers[A] + flag_c + val;
+
+                // flags
+                flag_z = ((result & 0xFF) == 0);
+
+                flag_n = 0;
+
+                flag_h = (((registers[A] & 0x0F) + (val & 0x0F) + flag_c) > 0x0F);
+
+                flag_c = (result > 0x0F);
+
+                registers[A] = result;
+
+                break;
             }
             
 

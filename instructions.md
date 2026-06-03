@@ -19,3 +19,6 @@
  - [x] LD [HL-], A
  - [x] LD A, [HL+]
  - [x] LD A, [HL-]
+ - [x] LD SP, n16
+ - [x] ADC A, r8
+ - [x] ADC A, [HL]
