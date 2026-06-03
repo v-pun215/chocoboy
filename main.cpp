@@ -7,7 +7,8 @@
 using namespace std;
 
 struct memory {
-    array<uint8_t, 32768> ROM = {}; // 32KB combined ROM
+    array<uint8_t, 2097000> ROM = {}; // 2MiB combined ROM
+    uint8_t rom_bank = 1;
     array<uint8_t, 8192> VRAM = {}; // 8KB VRAM
     array<uint8_t, 8192> ERAM = {}; // 8KB External RAM (local game storage?)
 
@@ -15,13 +16,23 @@ struct memory {
 
     array<uint8_t, 160> OAM = {}; // object attribute memory (sprites and stuff)
 
-    array<uint8_t, 126> HRAM = {}; // high ram (0-0)
+    array<uint8_t, 127> HRAM = {}; // high ram (0-0)
 
     uint8_t IE = 0; // Interrupt Enable register
 
-    uint8_t read(uint16_t address) {
-        if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
+    uint8_t read_ROM(uint16_t address) {
+        if (address >= 0x0000 && address <= 0x3FFF) {
             return ROM[address];
+        } else if (address >= 0x4000 && address <= 0x7FFF ) {
+            return rom_bank * 16384 + address - 0x4000;
+        }
+        return ROM[address];
+    }
+
+    uint8_t read(uint16_t address) {
+        cout << "READ ADDRESS: " << hex<<address << '\n';
+        if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
+            return read_ROM(address);
         } else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
             return VRAM[address-0x8000];
         } else if (address >= 0xA000 && address <= 0xBFFF) { // ERAM
@@ -29,7 +40,7 @@ struct memory {
         } else if (address >= 0xC000 && address <= 0xDFFF) { // WRAM
             return WRAM[address-0xC000];
         } else if (address >= 0xE000 && address <= 0xFDFF) { // echo ram
-            return WRAM[address-0xC000];
+            return WRAM[address-0xE000];
         } else if (address >= 0xFE00 && address <= 0xFE9F) { // OAM
             return OAM[address-0xFE00];
         } else if (address >= 0xFEA0 && address <= 0xFEFF) { // not usable
@@ -48,7 +59,13 @@ struct memory {
     }
     void write(uint16_t address, uint8_t content) {
         if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
-            // pass
+            if (address >= 0x2000 && address <= 0x3FFF) { // MBC1
+                auto shtuff = content & 0x1F; // lower 5 bits
+                if (shtuff == 0) {
+                    shtuff = 1;
+                }
+                rom_bank = shtuff;
+            }
         } else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
             VRAM[address-0x8000] = content;
         } else if (address >= 0xA000 && address <= 0xBFFF) { // ERAM
@@ -100,7 +117,7 @@ struct memory {
             );
             if (buffer.size()<32768) { // less than 32 KiB
                 cout << "error: ROM invalid - too small\n";
-            } else if (buffer.size()>32768) {
+            } else if (buffer.size()<32768) {
                 cout << "error: ROM too big for current implementation\n";
                 throw runtime_error("cannot copy ROM into memory");
             }
@@ -154,10 +171,11 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 };
 
 int main() {
+    const char* rom_path = std::getenv("ROM_PATH");
     cpu gb_cpu;
     memory mem;
     
-    mem.loadROM("roms/cpu_instrs.gb");
+    mem.loadROM(rom_path);
     cout <<"STEP1\n";
     while (true) {
         gb_cpu.decode(gb_cpu.fetch(mem));

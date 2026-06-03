@@ -1,1 +1,4 @@
 .vscode
+output
+.DS_Store
+.env
