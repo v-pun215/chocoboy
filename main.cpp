@@ -149,7 +149,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
         A//7
     };
 
-    array<uint8_t, 7> registers = {}; // r8
+    array<uint8_t, 8> registers = {}; // r8
     uint16_t PC = 0; // program counter
     uint16_t SP = 0; //stack pointer
     bool halted = false;
@@ -177,6 +177,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
     }
 
     uint8_t decode(uint8_t opcode, memory& mem) { //returns no of cycles took
+        cout << "EXECUTE OPCODE: " << hex << (int)opcode<< '\n';
         uint8_t cycles = 0;
         switch (opcode) {
             case 0x00: { // NOP
