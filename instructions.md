@@ -1,0 +1,21 @@
+# Instructions implemented
+ - [x] NOP
+ - [x] LD r8, r8
+ - [x] LD r8, [HL]
+ - [x] LD [HL], r8
+ - [ ] HALT (not completely)
+ - [x] LD [HL], n8
+ - [x] LD r8, n8
+ - [x] LD r16, n16
+ - [x] LD [n16], A
+ - [x] LD A, [n16]
+ - [x] LD [r16], A
+ - [x] LD A, [r16]
+ - [x] LDH [n16], A
+ - [x] LDH A, [n16]
+ - [x] LDH [C], A
+ - [x] LDH A, [C]
+ - [x] LD [HL+], A
+ - [x] LD [HL-], A
+ - [x] LD A, [HL+]
+ - [x] LD A, [HL-]

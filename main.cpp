@@ -20,6 +20,8 @@ struct memory {
 
     uint8_t IE = 0; // Interrupt Enable register
 
+
+
     uint8_t read_ROM(uint16_t address) {
         if (address >= 0x0000 && address <= 0x3FFF) {
             return ROM[address];
@@ -136,16 +138,21 @@ struct memory {
 };
 
 struct cpu { // 8-bit custom Sharp LR35902 processor
-    enum registerNames { 
-        A,
-        B,C,
-        D,E,
-        H,L,
+    enum registernams { 
+        B, //0
+        C, //1
+        D, //2
+        E,//3
+        H,//4
+        L,//5
+        notused,//6
+        A//7
     };
 
     array<uint8_t, 7> registers = {}; // r8
     uint16_t PC = 0; // program counter
     uint16_t SP = 0; //stack pointer
+    bool halted = false;
 
     // Flags register
     bool flag_z = 0; // zero flag
@@ -154,19 +161,228 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
     bool flag_c = 0; // carry flag
     
 
-    uint8_t fetch(memory mem) {
+    uint8_t fetch(memory& mem) {
         auto value = mem.read(PC);
         PC+=1;
         return value;
     }
+    uint16_t HL() {
+        return (registers[H] << 8) | registers[L];
+    }
+    uint16_t BC() {
+        return (registers[B] << 8) | registers[C];
+    }
+    uint16_t DE() {
+        return (registers[D] << 8) | registers[E];
+    }
 
-    void decode(uint8_t opcode) {
+    uint8_t decode(uint8_t opcode, memory& mem) { //returns no of cycles took
+        uint8_t cycles = 0;
         switch (opcode) {
-            /* ADC family of opcodes*/
-            case 0x88: { // ADC A, B (r8)
-                registers[A]+= registers[B] + flag_c;
+            case 0x00: { // NOP
+                cycles = 4;
+                //pass
+                break;
             }
+            case 0x40 ... 0x7F: {
+                cycles = 4;
+                auto destination = (opcode >> 3) & 0x07;
+                auto source = opcode & 0x07;
+                if (source==6 && destination !=6) {
+                    // LD r8, [HL]
+                    registers[destination] = mem.read(HL());
+                    cycles=8;
+                } else if (destination==6 && source!=6) {
+                    // LD [HL], r8
+                    mem.write(HL(), registers[source]);
+                } else if (destination==6 && source==6) {
+                    // HALT
+                    halted=true; // to do
+                } else {
+                    // LD r8, r8
+                    registers[destination]=registers[source];
+                }
+                break;
+            }
+
+            case 0x06:
+            case 0x16:
+            case 0x26:
+            case 0x36:
+            case 0x0E:
+            case 0x1E:
+            case 0x2E:
+            case 0x3E: {
+                auto destination = (opcode >> 3) & 0x07;
+                auto n8 = fetch(mem);
+                cycles=8;
+                if (destination==6) {
+                    // LD [HL], n8
+                    mem.write(HL(), n8);
+                    cycles=12;
+                } else {
+                    // LD r8, n8
+                    registers[destination] = n8;
+                }
+                break;
+            }
+
+            case 0x01:
+            case 0x11:
+            case 0x21:
+            case 0x31: { // LD r16, n16
+                auto r16 = (opcode >> 4) & 0x03; // destination
+                auto low = fetch(mem);
+                auto high = fetch(mem);
+                auto n16 = (high << 8) | low;
+                switch (r16) {
+                    case 0://BC
+                    registers[B] = high;
+                    registers[C] = low;
+                    break;
+
+                    case 1://DE
+                    registers[D]=high;
+                    registers[E]=low;
+                    break;
+
+                    case 2://HL
+                    registers[H]=high;
+                    registers[L]=low;
+                    break;
+
+                    case 3:
+                    SP = n16;
+                    break;
+                }
+                cycles=12;
+                break;
+            }
+
+            case 0xEA: {
+                // LD [n16], A
+                auto low = fetch(mem);
+                auto high = fetch(mem);
+                auto n16 = (high << 8) | low;
+                cycles=16;
+                mem.write(n16, registers[A]);
+                break;
+            }
+            case 0xFA: {
+                // LD A, [n16]
+                auto low = fetch(mem);
+                auto high = fetch(mem);
+                auto n16 = (high<<8 ) | low;
+                cycles=16;
+                registers[A] = mem.read(n16);
+                break;
+            }
+
+            // LD [r16], A 
+            case 0x02:
+            case 0x12: {
+                auto r16 = (opcode >> 4) & 0x03; //dest
+                auto address = (r16==0) ? ((registers[B] <<8) | registers[C]) : ((registers[D] <<8) | registers[E]);
+                mem.write(address, registers[A]);
+                cycles=8;
+                break;
+
+            }
+            // LD [HL+], A 
+            case 0x22: {
+                mem.write(HL(), registers[A]);
+                auto hl = HL();
+                hl++;
+                auto low = hl & 0xFF;
+                auto high = (hl >> 8) & 0xFF;
+                registers[H] = high;
+                registers[L] = low;
+                cycles=8;
+                break;
+            }
+            // LD [HL-], A 
+            case 0x32: {
+                mem.write(HL(), registers[A]);
+                auto hl = HL();
+                hl--;
+                auto low = hl & 0xFF;
+                auto high = (hl >>8) & 0xFF;
+                registers[H] = high;
+                registers[L] = low;
+                cycles=8;
+                break;
+            }
+            // LD A, [r16]
+            case 0x0B:
+            case 0x1B: {
+                auto r16 = (opcode >> 4) & 0x03; //dest
+                auto address = (r16==0) ? ((registers[B] <<8) | registers[C]) : ((registers[D] <<8) | registers[E]);
+                registers[A] = mem.read(address);
+                cycles=8;
+                break;
+            }
+            // LD A, [HL+]
+            case 0x2B: {
+                auto hl = HL();
+                registers[A] = mem.read(hl);                
+                hl++;
+                auto low = hl & 0xFF;
+                auto high = (hl >> 8) & 0xFF;
+                registers[H] = high;
+                registers[L] = low;
+                cycles=8;
+                break;
+            }
+            // LD A, [HL-]
+            case 0x3B: {
+                auto hl = HL();
+                registers[A] = mem.read(hl);                
+                hl--;
+                auto low = hl & 0xFF;
+                auto high = (hl >> 8) & 0xFF;
+                registers[H] = high;
+                registers[L] = low;
+                cycles=8;
+                break;
+            }
+
+            // LDH [n16], A
+            case 0xE0: {
+                auto high = 0xFF;
+                auto low=fetch(mem);
+                auto address = (high << 8) | low;
+                mem.write(address,registers[A]);
+                cycles=12;
+                break;
+            }
+            // LDH A, [n16]
+            case 0xF0: {
+                auto high = 0xFF;
+                auto low=fetch(mem);
+                auto address=(high <<8) | low;
+                registers[A] = mem.read(address);
+                cycles=12;
+                break;
+            }
+            // LDH [C], A
+            case 0xE3: {
+                auto address = 0xFF00+registers[C];
+                mem.write(address, registers[A]);
+                cycles=8;
+                break;
+            }
+            // LDH A, [C]
+            case 0xF3: {
+                auto address= 0xFF00 + registers[C];
+                registers[A] = mem.read(address);
+                cycles= 8;
+                break;  
+            }
+            
+
+
         }
+        return cycles;
     }
 };
 
@@ -178,7 +394,10 @@ int main() {
     mem.loadROM(rom_path);
     cout <<"STEP1\n";
     while (true) {
-        gb_cpu.decode(gb_cpu.fetch(mem));
+        if (gb_cpu.halted) {
+            break;
+        }
+        gb_cpu.decode(gb_cpu.fetch(mem), mem);
     }
 
 }
