@@ -22,3 +22,11 @@
  - [x] LD SP, n16
  - [x] ADC A, r8
  - [x] ADC A, [HL]
+ - [x] ADC A, n8
+ - [x] ADD A, r8
+ - [X] ADD A, n8
+ - [x] ADD A, [HL]
+ - [X] ADD HL, r16
+ - [x] ADD HL, SP
+ - [x] CP A, r8
+ - [x] CP A, [HL]

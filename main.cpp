@@ -169,6 +169,12 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
     uint16_t HL() {
         return (registers[H] << 8) | registers[L];
     }
+    void write_HL(uint16_t val) {
+        auto low = val & 0xFF;
+        auto high = (val >> 8) & 0xFF;
+        registers[H] = high;
+        registers[L] = low;
+    }
     uint16_t BC() {
         return (registers[B] << 8) | registers[C];
     }
@@ -291,6 +297,8 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
             }
             // LD [HL+], A 
+
+            
             case 0x22: {
                 mem.write(HL(), registers[A]);
                 auto hl = HL();
@@ -404,6 +412,112 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
                 registers[A] = result;
 
+                break;
+            }
+
+            case 0xCE: {
+                // ADC A, n8
+                auto n8 = fetch(mem);
+                auto result = registers[A] + flag_c + n8;
+                cycles = 8;
+                flag_z = ((result & 0xFF) == 0);
+                flag_n = 0;
+                flag_h = (((registers[A] & 0x0F) + (n8 & 0x0F) + flag_c) > 0x0F);
+
+                flag_c = (result > 0x0F);
+                registers[A] = result;
+                break;
+            }
+
+            case 0x80 ... 0x87: {
+                uint8_t val =0;
+                if (opcode != 0x86) { // ADD A, r8
+                    auto r8 = opcode  & 0x07;
+                    val = registers[r8];
+                    cycles=4;
+                } else { // ADD A, [HL]
+                    val = mem.read(HL());
+                    cycles=8;
+                }
+                auto result = registers[A] + val;
+                flag_z = ((result & 0xFF) == 0);
+                flag_n = 0;
+                flag_h = (((registers[A] & 0x0F) + (val & 0x0F) + flag_c) > 0x0F);
+                flag_c = (result > 0x0F);
+
+                registers[A] = result;
+                break;
+            }
+            
+            case 0xC6: {
+                // ADD A, n8
+                auto n8 = fetch(mem);
+                auto result = registers[A] + n8;
+                cycles = 8;
+                flag_z = ((result & 0xFF) == 0);
+                flag_n = 0;
+                flag_h = (((registers[A] & 0x0F) + (n8 & 0x0F) + flag_c) > 0x0F);
+
+                flag_c = (result > 0x0F);
+                registers[A] = result;
+                break;
+            }
+            case 0x09:
+            case 0x19:
+            case 0x29:
+            case 0x39: {
+                // ADD HL, r16
+                auto result = 0;
+                auto r16 = (opcode >> 4) & 0x03;
+                auto second_op = 0;
+                switch (r16) {
+                    case 0: // BC
+                    result = HL() + BC();
+                    second_op = BC();
+                    break;
+
+                    case 1: // DE
+                    result = HL() + DE();
+                    second_op = DE();
+                    break;
+
+                    case 2: // HL
+                    result = HL() +HL();
+                    second_op = HL();
+                    break;
+
+                    case 4: // SP
+                    // ADD HL, SP
+                    result = HL() + SP;
+                    second_op = SP;
+                    break;
+                }
+                flag_n = 0;
+                flag_h = ((HL() & 0b111111111111) + (second_op & 0b111111111111)) > 0b111111111111;
+                flag_c = ((HL() + second_op) > 0xFFFF);
+                cycles=8;
+
+                break;
+                
+
+            }
+
+            case 0xB8 ... 0xBF: {
+                auto r8 = opcode & 0xFF;
+                uint8_t result;
+                if (opcode == 0xBE) {
+                    // CP A, [HL]
+                    result = registers[A] - mem.read(HL());
+                    cycles=8;
+                } else {
+                    // CP A, r8
+                    result = registers[A] - registers[r8];
+                    cycles=4;
+                }
+                flag_z = (result == 0);
+                flag_n = 1;
+                flag_h = (registers[r8] & 0b1111) > (registers[A] & 0b1111);
+                flag_c = registers[r8] > registers[A];
                 break;
             }
             
