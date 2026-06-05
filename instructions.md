@@ -30,3 +30,18 @@
  - [x] ADD HL, SP
  - [x] CP A, r8
  - [x] CP A, [HL]
+ - [x] CP A, n8
+ - [x] DEC r8
+ - [x] DEC [HL]
+ - [x] DEC r16
+ - [x] DEC SP
+ - [x] INC r8
+ - [x] INC [HL]
+ - [x] INC r16
+ - [x] INC SP
+ - [x] SBC A, r8
+ - [x] SBC A, [HL]
+ - [x] SBC A, n8
+ - [x] SUB A, r8
+ - [x] SUB A, [HL]
+ - [x] SUB A, n8

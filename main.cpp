@@ -175,6 +175,18 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
         registers[H] = high;
         registers[L] = low;
     }
+
+    void write_register_r16(uint8_t& low_register, uint8_t& high_register, uint16_t val) {
+        /*
+        high register: first value (eg. H)
+        low register: second value (eg. L)
+        val: val to write
+        */
+        auto low = val & 0xFF;
+        auto high = (val >> 8) & 0xFF;
+        high_register = high;
+        low_register = low;
+    }
     uint16_t BC() {
         return (registers[B] << 8) | registers[C];
     }
@@ -323,8 +335,8 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 break;
             }
             // LD A, [r16]
-            case 0x0B:
-            case 0x1B: {
+            case 0x0A:
+            case 0x1A: {
                 auto r16 = (opcode >> 4) & 0x03; //dest
                 auto address = (r16==0) ? ((registers[B] <<8) | registers[C]) : ((registers[D] <<8) | registers[E]);
                 registers[A] = mem.read(address);
@@ -332,7 +344,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 break;
             }
             // LD A, [HL+]
-            case 0x2B: {
+            case 0x2A: {
                 auto hl = HL();
                 registers[A] = mem.read(hl);                
                 hl++;
@@ -344,7 +356,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 break;
             }
             // LD A, [HL-]
-            case 0x3B: {
+            case 0x3A: {
                 auto hl = HL();
                 registers[A] = mem.read(hl);                
                 hl--;
@@ -503,7 +515,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             }
 
             case 0xB8 ... 0xBF: {
-                auto r8 = opcode & 0xFF;
+                auto r8 = opcode & 0x07;
                 uint8_t result;
                 if (opcode == 0xBE) {
                     // CP A, [HL]
@@ -520,6 +532,211 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 flag_c = registers[r8] > registers[A];
                 break;
             }
+
+            case 0xFE: {
+                // CP A, n8
+                uint8_t n8 = fetch(mem);
+                cycles=8;
+                auto result = registers[A] - n8;
+                flag_z = (result == 0);
+                flag_n = 1;
+                flag_h = (n8 & 0b1111) > (registers[A] & 0b1111);
+                flag_c = n8 > registers[A];
+                break;
+            }
+
+            case 0x05:
+            case 0x15:
+            case 0x25:
+            case 0x0D:
+            case 0x1D:
+            case 0x2D:
+            case 0x3D: {
+                // DEC r8
+                auto r8 = opcode & 0x07;
+                auto result = registers[r8] - 1;
+                registers[r8]-=1;
+                cycles=4;
+
+                flag_z = (result == 0);
+                flag_n = 1;
+                flag_h = (registers[r8] & 0xF) == 0;
+                break;
+            }
+
+            case 0x35: {
+                // DEC [HL]
+                auto curn_hl = mem.read(HL());
+                auto result = curn_hl -1;
+                mem.write(HL(), result);
+                flag_z = (result == 0);
+                flag_n = 1;
+                flag_h = (curn_hl & 0xF) == 0;
+                cycles=12;
+                break;
+            }
+
+            case 0x0B:
+            case 0x1B:
+            case 0x2B:
+            case 0x3B: {
+                // DEC r16
+                auto r16 = (opcode >> 4) & 0x03;
+                uint16_t my_boi;
+                cycles=8;
+                switch (r16) {
+                    case 0:
+                    my_boi = BC();
+                    write_register_r16(registers[B], registers[C], my_boi-1);
+                    break;
+
+                    case 1:
+                    my_boi = DE();
+                    write_register_r16(registers[D], registers[E], my_boi-1);
+                    break;
+
+                    case 2:
+                    my_boi = HL();
+                    write_register_r16(registers[H], registers[L], my_boi-1);
+                    break;
+                    case 3:
+                    my_boi = SP;
+                    SP-=1;
+                    break;
+                }
+                break;
+            }
+
+            case 0x04:
+            case 0x14:
+            case 0x24:
+            case 0x0C:
+            case 0x1C:
+            case 0x2C:
+            case 0x3C: {
+                // INC r8
+                uint8_t r8 = opcode & 0x07;
+                auto result = registers[r8] +1;
+                cycles=4;
+                flag_z = (result == 0);
+                flag_n = 0;
+                flag_h = (registers[r8] & 0xF) == 0xF;
+                registers[r8] = result;
+                break;
+            }
+
+            case 0x34: {
+                // INC [HL]
+                cycles=12;
+                uint8_t curn_hl = mem.read(HL());
+                auto result = curn_hl + 1;
+                flag_z = (result == 0);
+                flag_n = 0;
+                flag_h = (curn_hl & 0xF) == 0xF;
+                mem.write(HL(), result);
+                break;
+            }
+
+            case 0x03:
+            case 0x13:
+            case 0x23:
+            case 0x33: {
+                // INC r16
+                auto r16 = (opcode >> 4) & 0x03;
+                uint16_t my_boi;
+                cycles=8;
+                switch (r16) {
+                    case 0:
+                    my_boi = BC();
+                    write_register_r16(registers[B], registers[C], my_boi+1);
+                    break;
+
+                    case 1:
+                    my_boi = DE();
+                    write_register_r16(registers[D], registers[E], my_boi+1);
+                    break;
+
+                    case 2:
+                    // INC SP
+                    my_boi = HL();
+                    write_register_r16(registers[H], registers[L], my_boi+1);
+                    break;
+                    case 3:
+                    my_boi = SP;
+                    SP+=1;
+                    break;
+                }
+                break;
+            }
+
+            case 0x98 ... 0x9F: {
+                // SBC A, r8
+                auto r8 = opcode & 0x7;
+                uint8_t result;
+                if (opcode != 0x9E) {
+                    result = registers[A] - flag_c - registers[r8];
+                    cycles=4;
+                    flag_h = ((registers[r8] & 0xF) + flag_c) > (registers[A] & 0xF); 
+                    flag_c = (registers[r8] + flag_c) > registers[A];
+                } else {
+                    // SBC A, [HL]
+                    auto curn_hl = mem.read(HL());
+                    result = registers[A] - flag_c - curn_hl;
+                    cycles=8;
+                    flag_h = ((curn_hl & 0xF) + flag_c) > (registers[A] & 0xF);
+                    flag_c = (curn_hl + flag_c) > registers[A];
+                }
+                flag_z = (result == 0);
+                flag_n = 1;
+                break;
+            }
+
+            case 0xDE: {
+                // SBC A, n8
+                auto n8 = fetch(mem);
+                auto result = registers[A] - n8 - flag_c;
+                flag_z = (result == 0);
+                flag_n = 1;
+                flag_h = ((n8 & 0xF) + flag_c) > (registers[A] & 0xF);
+                flag_c = (n8 + flag_c) > registers[A];
+                break;
+            }
+
+            case 0x90 ... 0x97: {
+                auto r8 = (opcode & 0x07);
+                uint8_t result;
+                if (opcode == 0x96) {
+                    // SUB A, [HL]
+                    auto curn_hl = mem.read(HL());
+                    result = registers[A] - curn_hl;
+                    cycles=8;
+                    flag_h = (curn_hl & 0xF) > (registers[A] & 0xF);
+                    flag_c = curn_hl > registers[A];
+                } else {
+                    // SUB A, r8
+                    result = registers[A] - registers[r8];
+                    cycles=4;
+                    flag_h = (registers[r8] & 0xF) > (registers[A] & 0xF);
+                    flag_c = registers[r8] > registers[A];
+                }
+                flag_z = (result == 0);
+                flag_n = 1;
+                break;
+            }
+
+            case 0xD6: {
+                uint8_t n8 = fetch(mem);
+                auto result = registers[A] - n8;
+                cycles=8;
+                flag_z = (result == 0);
+                flag_n = 1;
+                flag_h = (n8 & 0xF) > (registers[A] & 0xF);
+                flag_c = n8 > registers[A];
+                break;
+            }
+
+
+
             
 
 
