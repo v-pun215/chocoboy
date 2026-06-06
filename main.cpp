@@ -20,6 +20,8 @@ struct memory {
 
     uint8_t IE = 0; // Interrupt Enable register
 
+    vector<uint16_t> stack{};
+
 
 
     uint8_t read_ROM(uint16_t address) {
@@ -725,6 +727,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             }
 
             case 0xD6: {
+                // SUB A, n8
                 uint8_t n8 = fetch(mem);
                 auto result = registers[A] - n8;
                 cycles=8;
@@ -734,6 +737,31 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 flag_c = n8 > registers[A];
                 break;
             }
+            case 0xC3: {
+                // JP n16
+                uint8_t high = fetch(mem);
+                uint8_t low = fetch(mem);
+                uint16_t n16 = ((high << 8) | low);
+
+                PC = n16;
+                cycles = 16;
+                break;
+            }
+
+            case 0xCD: { // CALL n16
+                uint8_t high = fetch(mem);
+                uint8_t low = fetch(mem);
+                uint16_t n16 = ((high << 8) | low);
+                mem.stack.push_back(n16);
+
+                PC = n16; // implicit JP n16
+                cycles=24;
+                break;
+            }
+
+            
+
+
 
 
 

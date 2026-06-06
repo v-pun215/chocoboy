@@ -45,3 +45,5 @@
  - [x] SUB A, r8
  - [x] SUB A, [HL]
  - [x] SUB A, n8
+ - [x] CALL n16
+ - [x] JP n16
