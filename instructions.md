@@ -47,3 +47,11 @@
  - [x] SUB A, n8
  - [x] CALL n16
  - [x] JP n16
+ - [x] CALL cc, n16
+ - [x] JP HL
+ - [x] JP cc, n16
+ - [x] JR n16 (e8)
+ - [x] JR cc, n16 (e8)
+ - [x] RET cc
+ - [x] RETI
+ - [x] EI

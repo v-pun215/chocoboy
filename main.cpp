@@ -154,6 +154,8 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
     array<uint8_t, 8> registers = {}; // r8
     uint16_t PC = 0; // program counter
     uint16_t SP = 0; //stack pointer
+    bool IME = 0; // Interrupt Master Enable
+    bool IME_pending = 0; // next instruction IME enable;
     bool halted = false;
 
     // Flags register
@@ -739,8 +741,8 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             }
             case 0xC3: {
                 // JP n16
-                uint8_t high = fetch(mem);
                 uint8_t low = fetch(mem);
+                uint8_t high = fetch(mem);
                 uint16_t n16 = ((high << 8) | low);
 
                 PC = n16;
@@ -749,15 +751,227 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             }
 
             case 0xCD: { // CALL n16
-                uint8_t high = fetch(mem);
                 uint8_t low = fetch(mem);
+                uint8_t high = fetch(mem);
                 uint16_t n16 = ((high << 8) | low);
-                mem.stack.push_back(n16);
+                SP-=2;
+                mem.write(SP+1, (PC  >>8) & 0xFF); // high
+                mem.write(SP, PC & 0xFF); // low
 
                 PC = n16; // implicit JP n16
                 cycles=24;
                 break;
             }
+
+            case 0xC4:
+            case 0xD4:
+            case 0xCC:
+            case 0xDC: {
+                // CALL cc, n16
+                uint8_t cc = (opcode >> 3) & 0x03;
+                bool condition_met = false;
+                uint8_t low = fetch(mem);
+                uint8_t high = fetch(mem);
+                switch (cc) {
+                    case 0: {
+                        // NZ
+                        condition_met = !flag_z;
+                        break;
+                    }
+                    case 1: {
+                        // Z
+                        condition_met = flag_z;
+                        break;
+                    }
+                    case 2: {
+                        // NC
+                        condition_met = !flag_c;
+                        break;
+                    }
+                    case 3: {
+                        // C
+                        condition_met = flag_c;
+                        break;
+                    }
+                }
+                if (condition_met) {
+                    // essentially just call n16
+                    uint16_t n16 = ((high << 8) | low);
+                    SP-=2;
+                    mem.write(SP+1, (PC  >>8) & 0xFF); // high
+                    mem.write(SP, PC & 0xFF); // low
+
+                    PC = n16; // implicit JP n16
+                    cycles=24;
+                } else {
+                    cycles=12;
+                }
+                break;
+            }
+
+            case 0xE9: {
+                // JP HL
+                cycles=4;
+                PC=HL();
+                break;
+            }
+
+            case 0xC2:
+            case 0xD2:
+            case 0xCA:
+            case 0xDA: {
+                // JP cc, n16
+                uint8_t cc = (opcode >> 3) & 0x03;
+                bool condition_met = false;
+                uint8_t low = fetch(mem);
+                uint8_t high = fetch(mem);
+                switch (cc) {
+                    case 0: {
+                        // NZ
+                        condition_met = !flag_z;
+                        break;
+                    }
+                    case 1: {
+                        // Z
+                        condition_met = flag_z;
+                        break;
+                    }
+                    case 2: {
+                        // NC
+                        condition_met = !flag_c;
+                        break;
+                    }
+                    case 3: {
+                        // C
+                        condition_met = flag_c;
+                        break;
+                    }
+                }
+                if (condition_met) {
+                    // essentially just JP n16
+                    uint16_t n16 = ((high << 8) | low);
+
+                    PC = n16;
+                    cycles = 16;
+                } else {
+                    cycles=12;
+                }
+                break;
+            }
+
+            case 0x18: {
+                // JR n16 (e8)
+                int8_t offset = fetch(mem);
+                PC+=offset;
+                cycles=12;
+                break;
+            }
+
+            case 0x20:
+            case 0x30:
+            case 0x28:
+            case 0x38: {
+                // JR cc, n16
+                int8_t offset = fetch(mem);
+                uint8_t cc = (opcode >> 3) & 0x03;
+                bool condition_met = false;
+                switch (cc) {
+                    case 0:
+                    // NZ
+                    condition_met = !flag_z;
+                    break;
+
+                    case 1:
+                    //Z
+                    condition_met=flag_z;
+                    break;
+
+                    case 2:
+                    //NC
+                    condition_met=!flag_c;
+                    break;
+
+                    case 3:
+                    // C
+                    condition_met=flag_c;
+                    break;
+                }
+                if (condition_met) {
+                    PC+=offset;
+                    cycles=12;
+                } else {
+                    cycles=8;
+                }
+                break;
+            }
+
+            case 0xC0:
+            case 0xD0:
+            case 0xC8:
+            case 0xD8: {
+                // RET CC
+                uint8_t cc = (opcode >> 3) & 0x03; bool condition_met = false;
+                switch (cc) {
+                    case 0:
+                    // NZ
+                    condition_met = !flag_z;
+                    break;
+
+                    case 1:
+                    // Z
+                    condition_met = flag_z;
+                    break;
+
+                    case 2:
+                    // NC
+                    condition_met = !flag_c;
+                    break;
+
+                    case 3:
+                    // C
+                    condition_met = flag_c;
+                    break;
+                }
+                if (condition_met) {
+                    uint16_t addr = mem.read(SP);
+                    SP-=2;
+                    PC=addr;
+                    cycles=20;
+                } else{
+                    cycles= 8;
+                }
+                break;
+            }
+
+            case 0xC9: {
+                // RET
+                uint16_t addr = mem.read(PC);
+                SP-=2;
+                PC=addr;
+                cycles=16;
+                break;
+            }
+
+            case 0xFB: {
+                // EI
+                IME_pending = true;
+                cycles=4;
+                break;
+            }
+
+            case 0xD9: {
+                // RETI
+                IME_pending = true;
+                uint16_t addr = mem.read(PC);
+                SP-=2;
+                PC=addr;
+                cycles=16;
+                break;
+            }
+
+            
+
+            
 
             
 
@@ -785,6 +999,10 @@ int main() {
             break;
         }
         gb_cpu.decode(gb_cpu.fetch(mem), mem);
+        if (gb_cpu.IME_pending) {
+            gb_cpu.IME=true;
+            gb_cpu.IME_pending=false;
+        }
     }
 
 }
