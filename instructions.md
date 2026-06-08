@@ -71,3 +71,6 @@
  - [x] XOR A, r8
  - [x] XOR A, [HL]
  - [x] XOR A, n8
+ - [x] DI
+ - [x] LD SP, HL
+ - [x] LD [n16], SP
