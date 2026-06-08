@@ -755,8 +755,8 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 uint8_t high = fetch(mem);
                 uint16_t n16 = ((high << 8) | low);
                 SP-=2;
-                mem.write(SP+1, (PC  >>8) & 0xFF); // high
-                mem.write(SP, PC & 0xFF); // low
+                mem.write(SP+1, (PC  >>8) & 0xFF); // high byte of PC
+                mem.write(SP, PC & 0xFF); // low byte of PC
 
                 PC = n16; // implicit JP n16
                 cycles=24;
@@ -970,8 +970,111 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             }
 
             
+            case 0xC7:
+            case 0xD7:
+            case 0xE7:
+            case 0xF7:
+            case 0xCF:
+            case 0xDF:
+            case 0xEF:
+            case 0xFF: {
+                // RST vec
+                uint8_t vec = opcode & 0x38;
+                // essentially call vec
+                SP-=2;
+                mem.write(SP + 1, (PC >> 8) & 0xFF);  // high byte of PC
+                mem.write(SP, PC & 0xFF); // low byte of PC
 
-            
+
+                PC = vec; // implicit JP n16
+                cycles=16;
+                break;
+
+            }
+
+            case 0xC1:
+            case 0xD1:
+            case 0xE1:
+            case 0xF1: {
+                // POP r16
+                auto r16 = (opcode >> 4) & 0x03;
+
+                switch (r16) {
+                    case 0:
+                    // BC
+                    registers[C] = mem.read(SP);SP++;
+                    registers[D] = mem.read(SP);SP++;
+                    break;
+
+                    case 1:
+                    // DE
+                    registers[E] = mem.read(SP);SP++;
+                    registers[D] = mem.read(SP);SP++;
+
+                    break;
+
+                    case 2:
+                    // HL
+                    registers[L] = mem.read(SP);SP++;
+                    registers[H] = mem.read(SP);SP++;
+                    break;
+
+                    case 3:
+                    // POP AF
+                    uint8_t f = mem.read(SP);
+                    SP++;
+                    registers[A] = mem.read(SP);
+                    SP++;
+
+                    flag_z = (f >>7) & 1;
+                    flag_n = (f >> 6) &1;
+                    flag_h = (f >> 5) &1;
+                    flag_c = (f >> 4) &1; 
+                    
+                    break;
+                }
+
+                cycles=12;
+                break;
+
+
+            }
+
+            case 0xC5:
+            case 0xD5:
+            case 0xE5:
+            case 0xF5: {
+                // PUSH r16
+                uint16_t r16 = (opcode >> 4) & 0x03;
+                uint8_t high, low;
+                switch (r16) {
+                    case 0:
+                    // BC
+                    high = registers[B];
+                    low = registers[C];
+
+                    case 1:
+                    // DE
+                    high = registers[D];
+                    low = registers[E];
+
+                    case 2:
+                    // HL
+                    high = registers[H];
+                    low = registers[L];
+
+                    case 3:
+                    // PUSH AF
+                    high = registers[A];
+                    low = (flag_z << 7) | (flag_n << 6) | (flag_h << 5) | (flag_c << 4);
+                }
+                SP--;
+                mem.write(SP, high);
+                SP--;
+                mem.write(SP, low);
+                cycles=16;
+                break;
+            }
 
             
 

@@ -53,5 +53,11 @@
  - [x] JR n16 (e8)
  - [x] JR cc, n16 (e8)
  - [x] RET cc
+ - [x] RET
  - [x] RETI
  - [x] EI
+ - [x] RST vec
+ - [x] POP r16
+ - [x] POP AF
+ - [x] PUSH r16
+ - [x] PUSH AF
