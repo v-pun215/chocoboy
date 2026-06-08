@@ -1076,7 +1076,136 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 break;
             }
 
-            
+            case 0xA0 ... 0xA7: {
+                // AND A, r8
+                uint8_t r8 = opcode & 0x07;
+                cycles=4;
+                bool yo = false;
+                if (opcode == 0xA6) {
+                    // AND A, [HL]
+                    r8 = mem.read(HL());
+                    cycles=8;
+                    yo=true;
+
+                }
+                uint8_t result;
+                if (!yo) {
+                    result = registers[r8] & registers[A];
+                } else {
+                    result = r8 & registers[A];
+                }
+                flag_z = (result==0);
+                flag_n =0;
+                flag_h = 1;
+                flag_c = 0;
+                registers[A]=result;
+
+                break;
+            }
+
+            case 0xE6: {
+                // AND A, n8
+                uint8_t n8 = fetch(mem);
+                auto result = n8 & registers[A];
+                cycles=8;
+                flag_z = (result==0);
+                flag_n = 0;
+                flag_h=1;
+                flag_c=0;
+                registers[A]=result;
+                break;
+            }
+
+            case 0x2F: {
+                // CPL
+                registers[A]=~registers[A];
+                cycles=4;
+                flag_n = 1;
+                flag_h = 1;
+                break;
+            }
+
+            case 0xB0 ... 0xB7: {
+                // OR A, r8
+                auto r8 = opcode & 0x07;
+                cycles=4;bool yo=false;
+                if (opcode==0xB6) {
+                    // OR A, [HL]
+                    r8 = mem.read(HL());
+                    cycles=8;
+                    yo = true;
+                }
+                uint8_t result;
+                if (!yo) {
+                    result = registers[r8]|registers[A];
+                } else {
+                    result = r8|registers[A];
+                }
+                flag_z=(result==0);
+                flag_n=0;
+                flag_h=0;
+                flag_c=0;
+
+                registers[A]=result;
+                break;
+            }
+
+            case 0xF6: {
+                // OR A, n8
+                uint8_t n8 = fetch(mem);
+                cycles=8;
+                auto result = n8|registers[A];
+                flag_z=(result==0);
+                flag_n=0;
+                flag_h=0;
+                flag_c=0;
+
+                registers[A]=result;
+                break;
+            }
+            case 0xA8 ... 0xAF: {
+                // XOR A, r8
+                auto r8 = opcode & 0x07;
+                cycles=4;
+                bool yo=false;
+                if (opcode==0xB6) {
+                    // XOR A, [HL]
+                    r8 = mem.read(HL());
+                    cycles=8;
+                    yo=true;
+                }
+                uint8_t result;
+                if (yo) {
+                    result = r8^registers[A];
+                } else {
+                    result = registers[r8]^registers[A];
+
+                }
+                flag_z=(result==0);
+                flag_n=0;
+                flag_h=0;
+                flag_c=0;
+
+                registers[A]=result;
+                break;
+            }
+
+            case 0xEE: {
+                // XOR A, n8
+                uint8_t n8 = fetch(mem);
+                cycles=8;
+                auto result = n8^registers[A];
+                flag_z=(result==0);
+                flag_n=0;
+                flag_h=0;
+                flag_c=0;
+
+                registers[A]=result;
+                break;
+            }
+
+
+
 
 
 

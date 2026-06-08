@@ -61,3 +61,13 @@
  - [x] POP AF
  - [x] PUSH r16
  - [x] PUSH AF
+ - [x] AND A, r8
+ - [x] AND A, [HL]
+ - [x] AND A, n8
+ - [x] CPL
+ - [x] OR A, r8
+ - [x] OR A, [HL]
+ - [x] OR A, n8
+ - [x] XOR A, r8
+ - [x] XOR A, [HL]
+ - [x] XOR A, n8
