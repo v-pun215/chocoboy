@@ -3,8 +3,10 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <iomanip>
 
 using namespace std;
+bool debug = false;
 
 struct memory {
     array<uint8_t, 2097000> ROM = {}; // 2MiB combined ROM
@@ -29,13 +31,13 @@ struct memory {
         if (address >= 0x0000 && address <= 0x3FFF) {
             return ROM[address];
         } else if (address >= 0x4000 && address <= 0x7FFF ) {
-            return rom_bank * 16384 + address - 0x4000;
+            return ROM[(rom_bank * 0x4000) + (address - 0x4000)];
         }
         return ROM[address];
     }
 
     uint8_t read(uint16_t address) {
-        cout << "READ ADDRESS: " << hex<<address << '\n';
+        if (debug){cout << "READ ADDRESS: " << hex<<address << '\n';}
         if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
             return read_ROM(address);
         } else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
@@ -51,9 +53,9 @@ struct memory {
         } else if (address >= 0xFEA0 && address <= 0xFEFF) { // not usable
             return 0xFF; //to do
         } else if (address >= 0xFF00 && address <= 0xFF7F) { // implment io ranges
-            cout << "I/O ADDRESS CALLED: " << address << '\n';
+            if (debug){cout << "I/O ADDRESS CALLED: " << address << '\n';}
             if (address == 0xFF44) {
-                return ly++; // a member that increments over time
+                return 0x90;
             }
             return 0xFF; // for now
         } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -92,7 +94,7 @@ struct memory {
                 // joypad input 
             } else if (address >= 0xFF01 && address <=0xFF02) {
                 //serial transfer
-                cout << "SERIAL: " << (char)content <<'\n';
+                cout << "SERIAL: " << (int)content <<'\n';
             } else if (address == 0xFF0F) {
                 // interrupts
             } else if (address >= 0xFF10 && address <= 0xFF26) {
@@ -139,6 +141,7 @@ struct memory {
             cout << "ROM loaded successfully!\n";
         } catch (const exception& e){
             cerr << "Caught: " << e.what() << '\n';
+            exit(EXIT_FAILURE);
         }
     }
 };
@@ -184,16 +187,9 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
         registers[L] = low;
     }
 
-    void write_register_r16(uint8_t& low_register, uint8_t& high_register, uint16_t val) {
-        /*
-        high register: first value (eg. H)
-        low register: second value (eg. L)
-        val: val to write
-        */
-        auto low = val & 0xFF;
-        auto high = (val >> 8) & 0xFF;
-        high_register = high;
-        low_register = low;
+    void write_register_r16(uint8_t& high_register, uint8_t& low_register, uint16_t val) {
+        high_register = (val >> 8) & 0xFF;
+        low_register = val & 0xFF;
     }
     uint16_t BC() {
         return (registers[B] << 8) | registers[C];
@@ -201,9 +197,12 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
     uint16_t DE() {
         return (registers[D] << 8) | registers[E];
     }
+    uint8_t F() {
+        return (flag_z << 7) | (flag_n << 6) | (flag_h << 5) | (flag_c << 4);
+    }
 
     uint8_t decode(uint8_t opcode, memory& mem) { //returns no of cycles took
-        cout << "EXECUTE OPCODE: " << hex << (int)opcode<< '\n';
+        if (debug){cout << "EXECUTE OPCODE: " << hex << (int)opcode<< '\n';}
         uint8_t cycles = 0;
         switch (opcode) {
             case 0x00: { // NOP
@@ -561,14 +560,15 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0x2D:
             case 0x3D: {
                 // DEC r8
-                auto r8 = opcode & 0x07;
+                auto r8 = (opcode >> 3) & 0x07;
                 auto result = registers[r8] - 1;
-                registers[r8]-=1;
+
                 cycles=4;
 
                 flag_z = (result == 0);
                 flag_n = 1;
                 flag_h = (registers[r8] & 0xF) == 0;
+                registers[r8]-=1;
                 break;
             }
 
@@ -735,12 +735,13 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0xD6: {
                 // SUB A, n8
                 uint8_t n8 = fetch(mem);
-                auto result = registers[A] - n8;
+                uint8_t result = registers[A] - n8;
                 cycles=8;
                 flag_z = (result == 0);
                 flag_n = 1;
                 flag_h = (n8 & 0xF) > (registers[A] & 0xF);
                 flag_c = n8 > registers[A];
+                registers[A]=result;
                 break;
             }
             case 0xC3: {
@@ -762,10 +763,11 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 SP -= 2;
                 mem.write(SP + 1, (PC >> 8) & 0xFF);
                 mem.write(SP, PC & 0xFF);
+                if (debug){
                 cout << "CALL n16. SP: " << hex << SP 
                     << " pushing PC: " << PC 
                     << " to addresses: " << SP << " and " << (SP+1) << '\n';
-                PC = n16;
+                }PC = n16;
                 cycles = 24;
                 break;
             }
@@ -775,12 +777,12 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0xCC:
             case 0xDC: {
                 // CALL cc, n16
-                cout << "CALL cc, n16. SP: " << SP << '\n';
+                if(debug){cout << "CALL cc, n16. SP: " << SP << '\n';}
                 uint8_t cc = (opcode >> 3) & 0x03;
                 bool condition_met = false;
                 uint8_t low = fetch(mem);
                 uint8_t high = fetch(mem);
-                cout << "flags: z,n,h,c: " << flag_z <<' '<< flag_n << ' ' << flag_h << ' ' << flag_c << '\n';
+                if (debug){cout << "flags: z,n,h,c: " << flag_z <<' '<< flag_n << ' ' << flag_h << ' ' << flag_c << '\n';}
                 switch (cc) {
                     case 0: {
                         // NZ
@@ -919,7 +921,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0xC8:
             case 0xD8: {
                 // RET CC
-                cout << "RET CC. SP: " << SP << '\n';
+                if (debug) {cout << "RET CC. SP: " << SP << '\n';}
                 uint8_t cc = (opcode >> 3) & 0x03; bool condition_met = false;
                 switch (cc) {
                     case 0:
@@ -945,7 +947,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 if (condition_met) {
                     
                     uint16_t addr = mem.read(SP);
-                    cout << "RET cc SP read from mem: "  <<addr <<'\n';
+                    if (debug) {cout << "RET cc SP read from mem: "  <<addr <<'\n';}
                     SP-=2;
                     PC=addr;
                     cycles=20;
@@ -961,11 +963,12 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 uint8_t high = mem.read(SP + 1);
                 SP += 2;
                 PC = (high << 8) | low;
+                if (debug) {
                 cout << "RET. SP: " << hex << SP 
                     << " low: " << (int)low 
                     << " high: " << (int)high 
                     << " jumping to: " << PC << '\n';
-                cycles = 16;
+                }cycles = 16;
                 break;
             }
 
@@ -978,7 +981,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
             case 0xD9: {
                 // RETI
-                cout << "RETI. SP: " << SP << '\n';
+                if (debug) {cout << "RETI. SP: " << SP << '\n';}
                 IME_pending = true;
                 uint16_t addr = mem.read(PC);
                 SP-=2;
@@ -997,7 +1000,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0xEF:
             case 0xFF: {
                 // RST vec
-                cout << "RST vec. SP: " << SP << '\n';
+                if (debug) {cout << "RST vec. SP: " << SP << '\n';}
                 uint8_t vec = opcode & 0x38;
                 // essentially call vec
                 SP-=2;
@@ -1055,7 +1058,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 }
 
                 cycles=12;
-                cout << "POP r16. SP: " << SP << '\n';
+                if (debug) {cout << "POP r16. SP: " << SP << '\n';}
                 break;
 
 
@@ -1066,7 +1069,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0xE5:
             case 0xF5: {
                 // PUSH r16
-                cout << "PUSH. SP: " << SP << '\n';
+                if (debug) {cout << "PUSH. SP: " << SP << '\n';}
                 uint16_t r16 = (opcode >> 4) & 0x03;
                 uint8_t high, low;
                 switch (r16) {
@@ -1193,7 +1196,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 auto r8 = opcode & 0x07;
                 cycles=4;
                 bool yo=false;
-                if (opcode==0xB6) {
+                if (opcode==0xAE) {
                     // XOR A, [HL]
                     r8 = mem.read(HL());
                     cycles=8;
@@ -1268,9 +1271,9 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
         return cycles;
     }
 };
-
 int main() {
-    auto rom_path = "./roms/cpu_instrs.gb";
+    auto rom_path = "./individual/01-special.gb";
+    bool doctor = false;
     cpu gb_cpu;
     memory mem;
     // boot stuff
@@ -1287,14 +1290,35 @@ int main() {
     gb_cpu.flag_n=0;
     gb_cpu.flag_h=1;
     gb_cpu.flag_c=1;
-    
+
     mem.loadROM(rom_path);
+
     cout <<"STEP1\n";
     while (true) {
         if (gb_cpu.halted) {
             break;
         }
+        if (doctor) {
+            cout << uppercase << hex
+                << "A:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.A]
+                << " F:" << setw(2) << setfill('0') << (int)gb_cpu.F()
+                << " B:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.B]
+                << " C:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.C]
+                << " D:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.D]
+                << " E:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.E]
+                << " H:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.H]
+                << " L:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.L]
+                << " SP:" << setw(4) << setfill('0') << (int)gb_cpu.SP
+                << " PC:" << setw(4) << setfill('0') << (int)gb_cpu.PC
+                << " PCMEM:" << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC)
+                << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+1)
+                << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+2)
+                << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+3)
+                << '\n';
+        }
         gb_cpu.decode(gb_cpu.fetch(mem), mem);
+        if (debug) {cout << "Register B: " << (int)gb_cpu.registers[gb_cpu.B] << " and L: " << (int)gb_cpu.registers[gb_cpu.L] << '\n'; }
+
         if (gb_cpu.IME_pending) {
             gb_cpu.IME=true;
             gb_cpu.IME_pending=false;
