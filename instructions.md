@@ -74,3 +74,9 @@
  - [x] DI
  - [x] LD SP, HL
  - [x] LD [n16], SP
+ - [x] CB BIT u3, r8
+ - [x] CB BIT u3, [HL]
+ - [x] CB RES u3, r8
+ - [x] CB RES u3, [HL]
+ - [x] CB SET u3,r8
+ - [x] CB SET u3,[HL]

@@ -7,7 +7,7 @@
 
 using namespace std;
 bool debug = false;
-
+bool serial = false;
 struct memory {
     array<uint8_t, 2097000> ROM = {}; // 2MiB combined ROM
     uint8_t rom_bank = 1;
@@ -94,7 +94,7 @@ struct memory {
                 // joypad input 
             } else if (address >= 0xFF01 && address <=0xFF02) {
                 //serial transfer
-                cout << "SERIAL: " << (int)content <<'\n';
+                if (serial) {cout << "SERIAL: " << (int)content <<'\n';}
             } else if (address == 0xFF0F) {
                 // interrupts
             } else if (address >= 0xFF10 && address <= 0xFF26) {
@@ -138,7 +138,7 @@ struct memory {
                 ROM.begin()
             );
 
-            cout << "ROM loaded successfully!\n";
+            if (debug) {cout << "ROM loaded successfully!\n";}
         } catch (const exception& e){
             cerr << "Caught: " << e.what() << '\n';
             exit(EXIT_FAILURE);
@@ -1260,6 +1260,64 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 break;
             }
 
+            case 0xCB: {
+                // $CB prefix
+                uint8_t opcode_cb = fetch(mem);
+                auto r8 = opcode & 0x7;
+                switch (opcode_cb) {
+                    case 0x40 ... 0x7F: {
+                        // BIT u3,r8
+                        auto u3 = (opcode >> 3) & 0x7;
+                        bool yes;
+                        if (r8==6) { // BIT u3, [HL]
+                            bool yes = (mem.read(HL()) >> 3) & 0x1;
+                            cycles=12;
+                        } else {
+                            bool yes = (registers[r8]>>u3) & 0x1;
+                            cycles=8;
+                        }
+                        flag_z = (!yes);
+                        flag_n = 0;
+                        flag_h=1;
+                        
+                        break;
+                    }
+
+                    case 0x80 ... 0xBF: {
+                        // RES u3, r8
+                        auto u3 = (opcode >> 3) & 0x7;
+                        if (r8==6) {
+                            // RES u3, [HL]
+                            auto result = mem.read(HL()) & ~(1 << u3);
+                            mem.write(HL(), result);
+                            cycles=16;
+                        } else {
+                            registers[r8] &= ~(1 << u3);
+                            cycles=8;
+                        }
+
+                        break;
+                    }
+
+                    case 0xC0 ... 0xFF: {
+                        //SET u3,r8
+                        auto u3 = (opcode >> 3) & 0x7;
+                        if (r8==6) {
+                            // SET u3, [HL]
+                            auto result = mem.read(HL()) & (1 << u3);
+                            mem.write(HL(), result);
+                            cycles=16;
+                        } else {
+                            registers[r8] &= (1 << u3);
+                            cycles=8;
+                        }
+
+                        break;
+                    }
+
+                }
+            }
+
 
 
 
@@ -1271,9 +1329,10 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
         return cycles;
     }
 };
+
 int main() {
     auto rom_path = "./individual/01-special.gb";
-    bool doctor = false;
+    bool doctor = true;
     cpu gb_cpu;
     memory mem;
     // boot stuff
@@ -1292,8 +1351,6 @@ int main() {
     gb_cpu.flag_c=1;
 
     mem.loadROM(rom_path);
-
-    cout <<"STEP1\n";
     while (true) {
         if (gb_cpu.halted) {
             break;
