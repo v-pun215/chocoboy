@@ -80,3 +80,23 @@
  - [x] CB RES u3, [HL]
  - [x] CB SET u3,r8
  - [x] CB SET u3,[HL]
+ - [x] CB RL r8
+ - [x] CB RL [HL]
+ - [x] RLA
+ - [x] CB RLC r8
+ - [x] CB RLC [HL]
+ - [x] RLCA
+ - [x] CB RR r8
+ - [x] CB RR [HL]
+ - [x] RRA
+ - [x] CB RRC r8
+ - [x] CB RRC [HL]
+ - [x] RRCA
+ - [x] CB SLA r8
+ - [x] CB SLA [HL]
+ - [x] CB SRA r8
+ - [x] CB SRA [HL]
+ - [x] CB SRL r8
+ - [x] CB SRL [HL]
+ - [x] SWAP r8
+ - [x] SWAP [HL]

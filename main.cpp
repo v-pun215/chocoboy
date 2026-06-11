@@ -427,7 +427,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
                 flag_h = (((registers[A] & 0x0F) + (val & 0x0F) + flag_c) > 0x0F);
 
-                flag_c = (result > 0x0F);
+                flag_c = (result > 0xFF);
 
                 registers[A] = result;
 
@@ -443,7 +443,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 flag_n = 0;
                 flag_h = (((registers[A] & 0x0F) + (n8 & 0x0F) + flag_c) > 0x0F);
 
-                flag_c = (result > 0x0F);
+                flag_c = (result > 0xFF);
                 registers[A] = result;
                 break;
             }
@@ -475,9 +475,9 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 cycles = 8;
                 flag_z = ((result & 0xFF) == 0);
                 flag_n = 0;
-                flag_h = (((registers[A] & 0x0F) + (n8 & 0x0F) + flag_c) > 0x0F);
+                flag_h = (((registers[A] & 0x0F) + (n8 & 0x0F)) > 0x0F);
 
-                flag_c = (result > 0x0F);
+                flag_c = (result > 0xFF);
                 registers[A] = result;
                 break;
             }
@@ -488,6 +488,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 // ADD HL, r16
                 auto result = 0;
                 auto r16 = (opcode >> 4) & 0x03;
+                uint16_t ogHL = HL();
                 auto second_op = 0;
                 switch (r16) {
                     case 0: // BC
@@ -505,15 +506,16 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                     second_op = HL();
                     break;
 
-                    case 4: // SP
+                    case 3: // SP
                     // ADD HL, SP
                     result = HL() + SP;
                     second_op = SP;
                     break;
                 }
+                write_register_r16(registers[H], registers[L], result);
                 flag_n = 0;
-                flag_h = ((HL() & 0b111111111111) + (second_op & 0b111111111111)) > 0b111111111111;
-                flag_c = ((HL() + second_op) > 0xFFFF);
+                flag_h = ((ogHL& 0x0FFF) + (second_op & 0x0FFF)) > 0x0FFF;
+                flag_c = (result > 0xFFFF);
                 cycles=8;
 
                 break;
@@ -946,10 +948,11 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 }
                 if (condition_met) {
                     
-                    uint16_t addr = mem.read(SP);
-                    if (debug) {cout << "RET cc SP read from mem: "  <<addr <<'\n';}
-                    SP-=2;
-                    PC=addr;
+                    uint8_t low = mem.read(SP);
+                    uint8_t high = mem.read(SP + 1);
+                    if (debug) {cout << "RET cc SP read from mem: "  <<low <<'\n';}
+                    SP+=2;
+                    PC=(high << 8) | low;
                     cycles=20;
                 } else{
                     cycles= 8;
@@ -1260,10 +1263,76 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 break;
             }
 
+            case 0x17: {
+                // RLA
+                uint8_t old_carry_flag = flag_c;
+                uint8_t first_bit_A = registers[A] >> 7;
+                uint8_t result = registers[A]<<1 | old_carry_flag;
+                registers[A] = result;
+                flag_c = first_bit_A;
+                flag_z=0;
+                flag_n=0;
+                flag_h=0;
+                cycles=4;
+                break;
+            }
+
+            case 0x07: {
+                // RLCA
+                uint8_t old_carry_flag = flag_c;
+                uint8_t first_bit_A = registers[A] >> 7;
+                uint8_t result = registers[A]<<1 | first_bit_A;
+                registers[A] = result;
+                flag_c = first_bit_A;
+                flag_z=0;
+                flag_n=0;
+                flag_h=0;
+                cycles=4;
+                break;
+            }
+
+            case 0x1F: {
+                // RRA
+                uint8_t old_flag_c = flag_c;
+                uint8_t last_bit_of_r8;
+                uint8_t result;
+
+
+                last_bit_of_r8 = registers[A] &1;
+                result = (registers[A] >> 1) | (old_flag_c << 7);
+                cycles=4;
+                registers[A]=result;
+
+                flag_c = last_bit_of_r8;
+                flag_z =0;
+                flag_n=0;
+                flag_h=0;
+                break;
+            }
+
+            case 0x0F: {
+                // RRCA
+                uint8_t old_flag_c = flag_c;
+                uint8_t last_bit_of_r8;
+                uint8_t result;
+
+
+                last_bit_of_r8 = registers[A] &1;
+                result = (registers[A] >> 1) | (last_bit_of_r8 << 7);
+                cycles=4;
+                registers[A]=result;
+
+                flag_c = last_bit_of_r8;
+                flag_z =0;
+                flag_n=0;
+                flag_h=0;
+                break;
+            }
+
             case 0xCB: {
                 // $CB prefix
                 uint8_t opcode_cb = fetch(mem);
-                auto r8 = opcode & 0x7;
+                auto r8 = opcode_cb & 0x7;
                 switch (opcode_cb) {
                     case 0x40 ... 0x7F: {
                         // BIT u3,r8
@@ -1314,7 +1383,189 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
                         break;
                     }
+                    case 0x10 ... 0x17: {
+                        // RL r8
+                        uint8_t old_flag_c = flag_c;
+                        uint8_t first_bit_of_r8;
+                        uint8_t result;
+                        if (r8==6) {
+                            // RL [HL]
+                            first_bit_of_r8 = mem.read(HL()) >> 7;
+                            cycles=16;
+                            result = mem.read(HL()) << 1 | old_flag_c;
+                            mem.write(HL(), result);
+                        } else {
+                            first_bit_of_r8 = registers[r8] >> 7;
+                            result = registers[r8] << 1 |old_flag_c;
+                            cycles=8;
+                            registers[r8]=result;
+                        }
+                        flag_c = first_bit_of_r8;
+                        flag_z = (result ==0);
+                        flag_n=0;
+                        flag_h=0;
+                        break;
+                    }
 
+                    case 0x00 ... 0x07: {
+                        // RLC r8
+                        uint8_t old_flag_c = flag_c;
+                        uint8_t first_bit_of_r8;
+                        uint8_t result;
+                        if (r8==6) {
+                            // RLC [HL]
+                            first_bit_of_r8 = mem.read(HL()) >> 7;
+                            cycles=16;
+                            result = mem.read(HL()) << 1 | first_bit_of_r8;
+                            mem.write(HL(), result);
+                        } else {
+                            first_bit_of_r8 = registers[r8] >> 7;
+                            result = registers[r8] << 1 |first_bit_of_r8;
+                            cycles=8;
+                            registers[r8]=result;
+                        }
+                        flag_c = first_bit_of_r8;
+                        flag_z = (result ==0);
+                        flag_n=0;
+                        flag_h=0;
+                        break;
+                    }
+
+                    case 0x18 ... 0x1F: {
+                        // RR r8
+                        uint8_t old_flag_c = flag_c;
+                        uint8_t last_bit_of_r8;
+                        uint8_t result;
+                        if (r8==6) {
+                            // RR [HL]
+                            last_bit_of_r8 = mem.read(HL()) & 1;
+                            cycles=16;
+                            result = mem.read(HL()) >> 1 | (old_flag_c<<7);
+                            mem.write(HL(), result);
+                        } else {
+                            last_bit_of_r8 = registers[r8] &1;
+                            result = (registers[r8] >> 1) | (old_flag_c << 7);
+                            cycles=8;
+                            registers[r8]=result;
+                        }
+                        flag_c = last_bit_of_r8;
+                        flag_z = (result ==0);
+                        flag_n=0;
+                        flag_h=0;
+                        break;
+                    }
+                    case 0x08 ... 0x0F: {
+                        // RRC r8
+                        uint8_t old_flag_c = flag_c;
+                        uint8_t last_bit_of_r8;
+                        uint8_t result;
+                        if (r8==6) {
+                            // RRC [HL]
+                            last_bit_of_r8 = mem.read(HL()) & 1;
+                            cycles=16;
+                            result = mem.read(HL()) >> 1 | (last_bit_of_r8<<7);
+                            mem.write(HL(), result);
+                        } else {
+                            last_bit_of_r8 = registers[r8] &1;
+                            result = (registers[r8] >> 1) | (last_bit_of_r8 << 7);
+                            cycles=8;
+                            registers[r8]=result;
+                        }
+                        flag_c = last_bit_of_r8;
+                        flag_z = (result ==0);
+                        flag_n=0;
+                        flag_h=0;
+                        break;
+                    }
+
+                    case 0x20 ... 0x27: {
+                        // SLA r8
+                        uint8_t first_bit_of_r8;
+                        uint8_t result;
+                        if (r8==6) {
+                            // SLA [HL]
+                            first_bit_of_r8 = mem.read(HL()) >> 7;
+                            cycles=16;
+                            result = mem.read(HL()) << 1;
+                            mem.write(HL(), result);
+                        } else {
+                            first_bit_of_r8 = registers[r8] >> 7;
+                            result = registers[r8] << 1;
+                            cycles=8;
+                            registers[r8]=result;
+                        }
+                        flag_c = first_bit_of_r8;
+                        flag_z = (result ==0);
+                        flag_n=0;
+                        flag_h=0;
+                        break;
+                    }
+
+                    case 0x28 ... 0x2F: {
+                        // SRA r8
+                        uint8_t last_bit_of_r8;
+                        uint8_t result;
+                        if (r8==6) {
+                            // SRA [HL]
+                            last_bit_of_r8 = mem.read(HL()) & 1;
+                            cycles=16;
+                            result = mem.read(HL()) >> 1 | (mem.read(HL()) & 0x80);
+                            mem.write(HL(), result);
+                        } else {
+                            last_bit_of_r8 = registers[r8] &1;
+                            result = (registers[r8] >> 1) | (registers[r8] & 0x80);
+                            cycles=8;
+                            registers[r8]=result;
+                        }
+                        flag_c = last_bit_of_r8;
+                        flag_z = (result ==0);
+                        flag_n=0;
+                        flag_h=0;
+                        break;
+                    }
+
+                    case 0x38 ... 0x3F: {
+                        // SRL r8
+                        uint8_t last_bit_of_r8;
+                        uint8_t result;
+                        if (r8==6) {
+                            // SRL [HL]
+                            last_bit_of_r8 = mem.read(HL()) & 1;
+                            cycles=16;
+                            result = mem.read(HL()) >> 1;
+                            mem.write(HL(), result);
+                        } else {
+                            last_bit_of_r8 = registers[r8] &1;
+                            result = (registers[r8] >> 1);
+                            cycles=8;
+                            registers[r8]=result;
+                        }
+                        flag_c = last_bit_of_r8;
+                        flag_z = (result ==0);
+                        flag_n=0;
+                        flag_h=0;
+                        break;
+                    }
+
+                    case 0x30 ... 0x37: {
+                        // SWAP r8
+                        uint8_t result;
+                        if (r8==6) {
+                            // SWAP [HL]
+                            result = ((mem.read(HL() & 0x0F) << 4) | ((mem.read(HL() & 0xF0 >> 4))));
+                            mem.write(HL(), result);
+                            cycles=16;
+                        } else {
+                            result = ((mem.read(HL() & 0x0F) << 4) | ((mem.read(HL() & 0xF0) >> 4)));
+                            registers[r8] = result;
+                            cycles=8;
+                        }
+                        flag_z = (result ==0);
+                        flag_n = 0;
+                        flag_h = 0;
+                        flag_c=0;
+                        break;
+                    }
                 }
             }
 
