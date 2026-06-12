@@ -100,3 +100,4 @@
  - [x] CB SRL [HL]
  - [x] SWAP r8
  - [x] SWAP [HL]
+ - [x] DAA

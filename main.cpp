@@ -94,7 +94,7 @@ struct memory {
                 // joypad input 
             } else if (address >= 0xFF01 && address <=0xFF02) {
                 //serial transfer
-                if (serial) {cout << "SERIAL: " << (int)content <<'\n';}
+                if (serial) {cout << "SERIAL: " << (char)content <<'\n';}
             } else if (address == 0xFF0F) {
                 // interrupts
             } else if (address >= 0xFF10 && address <= 0xFF26) {
@@ -562,7 +562,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0x2D:
             case 0x3D: {
                 // DEC r8
-                auto r8 = (opcode >> 3) & 0x07;
+                uint8_t r8 = (opcode >> 3) & 0x07;
                 auto result = registers[r8] - 1;
 
                 cycles=4;
@@ -570,7 +570,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 flag_z = (result == 0);
                 flag_n = 1;
                 flag_h = (registers[r8] & 0xF) == 0;
-                registers[r8]-=1;
+                registers[r8]=result;
                 break;
             }
 
@@ -1567,8 +1567,73 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                         break;
                     }
                 }
+                break;
             }
 
+            case 0x27: {
+                // DAA
+                uint8_t adjustment=0;
+                if (flag_n) {
+                    if (flag_h) {adjustment+=0x6;}
+                    if (flag_c) {adjustment+=0x60;}
+                    registers[A]-=adjustment;
+                } else {
+                    if (flag_h || (registers[A] & 0xF) > 0x9) {adjustment+=0x6;}
+                    if (flag_c || registers[A] > 0x99) {adjustment+=0x60; flag_c=true;}
+                    registers[A]+=adjustment;
+                }
+
+                flag_z = (registers[A]==0);
+                flag_h=0;
+                cycles=4;
+                break;
+            }
+
+            case 0xE8: {
+                // ADD SP, e8
+                uint8_t unsigned_e8 = fetch(mem);
+                int8_t e8 = static_cast<int8_t>(unsigned_e8);
+                uint16_t r16 = e8;
+                auto result = SP+e8;
+                cycles=16;
+                flag_z = 0;
+                flag_n = 0;
+                flag_h = (((SP & 0x0F) + (unsigned_e8 & 0x0F)) > 0x0F) ? 1 : 0;
+                flag_c = (((SP & 0xFF) + unsigned_e8) > 0xFF) ? 1 : 0;
+                SP=result;
+                break;
+            }
+
+            case 0xF8: {
+                // LD HL, SP+ e8
+                uint8_t unsigned_e8 = fetch(mem);
+                int8_t e8 = static_cast<int8_t>(unsigned_e8);
+                uint16_t r16 = e8;
+                auto result = SP+e8;
+                cycles=16;
+                flag_z = 0;
+                flag_n = 0;
+                flag_h = (((SP & 0x0F) + (unsigned_e8 & 0x0F)) > 0x0F) ? 1 : 0;
+                flag_c = (((SP & 0xFF) + unsigned_e8) > 0xFF) ? 1 : 0;
+                write_HL(result);
+                break;
+            }
+
+            case 0x3F: {
+                cycles=4;
+                flag_n=0;
+                flag_h=0;
+                flag_c=!flag_c;
+                break;
+            }
+
+            case 0x37: {
+                cycles=4;
+                flag_n=0;
+                flag_h=0;
+                flag_c=1;
+                break;
+            }
 
 
 
@@ -1582,7 +1647,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 };
 
 int main() {
-    auto rom_path = "./individual/01-special.gb";
+    auto rom_path = "./individual/02-interrupts.gb";
     bool doctor = true;
     cpu gb_cpu;
     memory mem;
