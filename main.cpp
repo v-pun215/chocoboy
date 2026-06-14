@@ -21,9 +21,57 @@ struct memory {
     array<uint8_t, 127> HRAM = {}; // high ram (0-0)
 
     uint8_t IE = 0; // Interrupt Enable register
+    uint8_t IF = 0;// Interrupt flag
 
-    vector<uint16_t> stack{};
-    uint8_t ly=0;
+
+    // timer stuff
+    uint8_t DIV = 0;
+    uint8_t TIMA = 0;
+    uint8_t TAC =0;
+    uint8_t TMA = 0;
+
+    uint16_t timer_cycles=0;
+    uint16_t div_cycles = 0;
+
+    void update_timer(uint8_t cycles) {
+        div_cycles+=cycles;
+        if (div_cycles>=256) {
+            div_cycles-=256;
+            DIV++;
+        }
+        if (!(TAC & 0x04)) {
+            return;
+        }
+
+        timer_cycles+=cycles;
+        uint16_t threshold;
+        switch (TAC & 0x03) {
+            case 0:
+            threshold = 1024;
+            break;
+
+            case 1:
+            threshold =16;
+            break;
+
+            case 2:
+            threshold=64;
+            break;
+
+            case 3:
+            threshold=256;
+            break;
+        }
+
+        while(timer_cycles>=threshold) {
+            timer_cycles-=threshold;
+            TIMA++;
+            if (TIMA==0) {
+                TIMA = TMA;
+                IF |= 0x04;
+            }
+        }
+    }
 
 
 
@@ -54,7 +102,23 @@ struct memory {
             return 0xFF; //to do
         } else if (address >= 0xFF00 && address <= 0xFF7F) { // implment io ranges
             if (debug){cout << "I/O ADDRESS CALLED: " << address << '\n';}
-            if (address == 0xFF44) {
+            switch (address) {
+                case 0xFF0F:
+                return IF;
+
+                case 0xFF04:
+                return DIV;
+
+                case 0xFF05:
+                return TIMA;
+
+                case 0xFF06:
+                return TMA;
+
+                case 0xFF07:
+                return TAC;
+
+                case 0xFF44:
                 return 0x90;
             }
             return 0xFF; // for now
@@ -97,11 +161,20 @@ struct memory {
                 if (serial) {cout << "SERIAL: " << (char)content <<'\n';}
             } else if (address == 0xFF0F) {
                 // interrupts
+                IF = content;
             } else if (address >= 0xFF10 && address <= 0xFF26) {
                 //audio
             } else if (address >= 0xFF30 && address <= 0xFF3F) {
                 // wave pattern
-            } //... TO DO
+            } else if (address == 0xFF04) {
+                DIV = 0;
+            } else if (address == 0xFF05) {
+                TIMA = content;
+            } else if (address==0xFF06) {
+                TMA = content; // to do
+            } else if (address==0xFF07) {
+                TAC = content;
+            }
 
         } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
             HRAM[address-0xFF80] = content;
@@ -375,7 +448,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 break;
             }
 
-            // LDH [n16], A
+            // LDH [a8], A
             case 0xE0: {
                 auto high = 0xFF;
                 auto low=fetch(mem);
@@ -985,7 +1058,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             case 0xD9: {
                 // RETI
                 if (debug) {cout << "RETI. SP: " << SP << '\n';}
-                IME_pending = true;
+                IME= true;
                 uint16_t addr = mem.read(PC);
                 SP-=2;
                 PC=addr;
@@ -1620,6 +1693,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             }
 
             case 0x3F: {
+                // CCF
                 cycles=4;
                 flag_n=0;
                 flag_h=0;
@@ -1628,11 +1702,18 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
             }
 
             case 0x37: {
+                // SCF
                 cycles=4;
                 flag_n=0;
                 flag_h=0;
                 flag_c=1;
                 break;
+            }
+
+            case 0x10: {
+                //STOP
+                auto n8 = fetch(mem);
+                halted=true;//essentially turn off cpu (for now)
             }
 
 
@@ -1668,9 +1749,7 @@ int main() {
 
     mem.loadROM(rom_path);
     while (true) {
-        if (gb_cpu.halted) {
-            break;
-        }
+
         if (doctor) {
             cout << uppercase << hex
                 << "A:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.A]
@@ -1689,13 +1768,44 @@ int main() {
                 << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+3)
                 << '\n';
         }
-        gb_cpu.decode(gb_cpu.fetch(mem), mem);
-        if (debug) {cout << "Register B: " << (int)gb_cpu.registers[gb_cpu.B] << " and L: " << (int)gb_cpu.registers[gb_cpu.L] << '\n'; }
+        uint8_t cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
 
+        mem.update_timer(cycles);
+        if (gb_cpu.halted) {
+            if ((mem.IE & mem.IF) !=0) {gb_cpu.halted=false;}
+        }
+        
         if (gb_cpu.IME_pending) {
             gb_cpu.IME=true;
             gb_cpu.IME_pending=false;
         }
+        if (gb_cpu.IME) {
+            auto pending = mem.IE & mem.IF;
+            if (pending!=0) {
+                auto lowest_bit = pending & -pending;
+                if (lowest_bit) {
+                    mem.IF &= ~lowest_bit;
+                    gb_cpu.IME=false;
+                    auto high = (gb_cpu.PC >> 8) & 0xFF;
+                    auto low = gb_cpu.PC & 0xFF;
+                    gb_cpu.SP -= 2;
+                    mem.write(gb_cpu.SP+1, high);
+                    mem.write(gb_cpu.SP, low);
+                    uint16_t vector = 0x0040;
+                    uint8_t bit = lowest_bit;
+                    if (bit == 0x01) vector = 0x0040;
+                    else if (bit == 0x02) vector = 0x0048;
+                    else if (bit == 0x04) vector = 0x0050;
+                    else if (bit == 0x08) vector = 0x0058;
+                    else if (bit == 0x10) vector = 0x0060;
+                    gb_cpu.PC = vector;
+                    
+                }
+            }
+        }
+
+        if (debug) {cout << "Register B: " << (int)gb_cpu.registers[gb_cpu.B] << " and L: " << (int)gb_cpu.registers[gb_cpu.L] << '\n'; }
+        
     }
 
 }

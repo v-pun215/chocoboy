@@ -101,3 +101,7 @@
  - [x] SWAP r8
  - [x] SWAP [HL]
  - [x] DAA
+ - [x] ADD SP, e8
+ - [x] LD HL, SP+e8
+ - [x] CCF
+ - [x] SCF
