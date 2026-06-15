@@ -143,11 +143,11 @@ struct memory {
         } else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
             VRAM[address-0x8000] = content;
         } else if (address >= 0xA000 && address <= 0xBFFF) { // ERAM
-            WRAM[address-0xA000] = content; // redirect to WRAM (echo)
+            ERAM[address-0xA000] = content;
         } else if (address >= 0xC000 && address <= 0xDFFF) { // WRAM
             WRAM[address-0xC000] = content;
         } else if (address >= 0xE000 && address <= 0xFDFF) { // echo ram
-            //pass (prohibited)
+            WRAM[address-0xE000] = content;
         } else if (address >= 0xFE00 && address <= 0xFE9F) { // OAM
             OAM[address-0xFE00] = content;
         } else if (address >= 0xFEA0 && address <= 0xFEFF) { // not usable
@@ -235,7 +235,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
     uint16_t PC = 0x0100; // program counter
     uint16_t SP = 0xFFFE; //stack pointer
     bool IME = 0; // Interrupt Master Enable
-    bool IME_pending = 0; // next instruction IME enable;
+    int IME_pending = 0; // next instruction IME enable;
     bool halted = false;
 
     // Flags register
@@ -1050,19 +1050,19 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
             case 0xFB: {
                 // EI
-                IME_pending = true;
+                IME_pending = 2;
                 cycles=4;
                 break;
             }
 
             case 0xD9: {
                 // RETI
-                if (debug) {cout << "RETI. SP: " << SP << '\n';}
-                IME= true;
-                uint16_t addr = mem.read(PC);
-                SP-=2;
-                PC=addr;
-                cycles=16;
+                uint8_t low = mem.read(SP);
+                uint8_t high = mem.read(SP + 1);
+                PC = (high << 8) | low;
+                SP += 2;
+                IME = true;
+                cycles = 16;
                 break;
             }
 
@@ -1748,64 +1748,73 @@ int main() {
     gb_cpu.flag_c=1;
 
     mem.loadROM(rom_path);
+
     while (true) {
 
-        if (doctor) {
-            cout << uppercase << hex
-                << "A:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.A]
-                << " F:" << setw(2) << setfill('0') << (int)gb_cpu.F()
-                << " B:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.B]
-                << " C:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.C]
-                << " D:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.D]
-                << " E:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.E]
-                << " H:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.H]
-                << " L:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.L]
-                << " SP:" << setw(4) << setfill('0') << (int)gb_cpu.SP
-                << " PC:" << setw(4) << setfill('0') << (int)gb_cpu.PC
-                << " PCMEM:" << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC)
-                << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+1)
-                << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+2)
-                << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+3)
-                << '\n';
-        }
-        uint8_t cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
-
-        mem.update_timer(cycles);
-        if (gb_cpu.halted) {
-            if ((mem.IE & mem.IF) !=0) {gb_cpu.halted=false;}
-        }
-        
-        if (gb_cpu.IME_pending) {
-            gb_cpu.IME=true;
-            gb_cpu.IME_pending=false;
-        }
-        if (gb_cpu.IME) {
+        if (gb_cpu.IME && (mem.IE & mem.IF)) {
             auto pending = mem.IE & mem.IF;
-            if (pending!=0) {
-                auto lowest_bit = pending & -pending;
-                if (lowest_bit) {
-                    mem.IF &= ~lowest_bit;
-                    gb_cpu.IME=false;
-                    auto high = (gb_cpu.PC >> 8) & 0xFF;
-                    auto low = gb_cpu.PC & 0xFF;
-                    gb_cpu.SP -= 2;
-                    mem.write(gb_cpu.SP+1, high);
-                    mem.write(gb_cpu.SP, low);
-                    uint16_t vector = 0x0040;
-                    uint8_t bit = lowest_bit;
-                    if (bit == 0x01) vector = 0x0040;
-                    else if (bit == 0x02) vector = 0x0048;
-                    else if (bit == 0x04) vector = 0x0050;
-                    else if (bit == 0x08) vector = 0x0058;
-                    else if (bit == 0x10) vector = 0x0060;
-                    gb_cpu.PC = vector;
-                    
-                }
+            auto lowest_bit = pending & -pending;
+
+            mem.IF &= ~lowest_bit;
+            gb_cpu.IME = false;
+
+            gb_cpu.SP -= 2;
+            mem.write(gb_cpu.SP + 1, (gb_cpu.PC >> 8) & 0xFF);
+            mem.write(gb_cpu.SP, gb_cpu.PC & 0xFF);
+
+            if (lowest_bit == 0x01) gb_cpu.PC = 0x0040;
+            else if (lowest_bit == 0x02) gb_cpu.PC = 0x0048;
+            else if (lowest_bit == 0x04) gb_cpu.PC = 0x0050;
+            else if (lowest_bit == 0x08) gb_cpu.PC = 0x0058;
+            else if (lowest_bit == 0x10) gb_cpu.PC = 0x0060;
+
+            mem.update_timer(20);
+            continue;
+        }
+        if (!gb_cpu.halted) { 
+            if (doctor) {
+                cout << uppercase << hex
+                    << "A:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.A]
+                    << " F:" << setw(2) << setfill('0') << (int)gb_cpu.F()
+                    << " B:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.B]
+                    << " C:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.C]
+                    << " D:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.D]
+                    << " E:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.E]
+                    << " H:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.H]
+                    << " L:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.L]
+                    << " SP:" << setw(4) << setfill('0') << (int)gb_cpu.SP
+                    << " PC:" << setw(4) << setfill('0') << (int)gb_cpu.PC
+                    << " PCMEM:" << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC)
+                    << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+1)
+                    << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+2)
+                    << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+3)
+                    << '\n';
+
+                
+            }
+            uint8_t cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
+            mem.update_timer(cycles);
+        } else {
+            mem.update_timer(4);
+            if ((mem.IE & mem.IF) !=0) {
+                gb_cpu.halted=false;
+            }
+        }
+        if (gb_cpu.IME_pending > 0) {
+            gb_cpu.IME_pending--;
+            if (gb_cpu.IME_pending == 0) {
+                gb_cpu.IME = true;
             }
         }
 
+
         if (debug) {cout << "Register B: " << (int)gb_cpu.registers[gb_cpu.B] << " and L: " << (int)gb_cpu.registers[gb_cpu.L] << '\n'; }
-        
+        if ((gb_cpu.PC == 0xC2BE || gb_cpu.PC == 0xC2C0) && debug) {
+         cout << "\n[INTERRUPT TRAP] PC: " << hex << gb_cpu.PC
+         << " | IME: " << gb_cpu.IME
+         << " | IE: " << (int)mem.IE
+         << " | IF: " << (int)mem.IF << "\n\n";
+        }
     }
 
 }
