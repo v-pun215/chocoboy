@@ -7,8 +7,52 @@
 
 using namespace std;
 bool debug = false;
-bool serial = false;
+bool serial = true;
+struct timer {
+    uint8_t DIV = 0;
+    uint8_t TIMA = 0;
+    uint8_t TMA = 0;
+    uint8_t TAC = 0;
+
+    int div_clocksum = 0;
+    int timer_clocksum = 0;
+    void handle_timer(uint8_t cycle, uint8_t& IF) {
+        // DIV is set
+        div_clocksum+=cycle;
+        if (div_clocksum >= 256) {
+            div_clocksum-=256;
+            DIV++;
+        }
+
+        // check if timer on
+        if ((TAC >> 2) & 0x1) {
+            timer_clocksum += cycle;
+
+            int freq = 4096;//hz
+            if ((TAC & 3) == 1) {
+                freq = 262144;
+            } else if ((TAC & 3) == 2) {
+                freq = 65536;
+            } else if ((TAC & 3) == 3) {
+                freq = 16384;
+            }
+
+            while (timer_clocksum>=(4194304/freq)) {
+                TIMA++;
+
+                if (TIMA == 0) {
+                    IF = IF | 4;
+                    TIMA = TMA; 
+                }
+                timer_clocksum-=(4194304 / freq);
+            }
+        }
+    }
+};
+
+
 struct memory {
+    timer tmr;
     array<uint8_t, 2097000> ROM = {}; // 2MiB combined ROM
     uint8_t rom_bank = 1;
     array<uint8_t, 8192> VRAM = {}; // 8KB VRAM
@@ -22,57 +66,6 @@ struct memory {
 
     uint8_t IE = 0; // Interrupt Enable register
     uint8_t IF = 0;// Interrupt flag
-
-
-    // timer stuff
-    uint8_t DIV = 0;
-    uint8_t TIMA = 0;
-    uint8_t TAC =0;
-    uint8_t TMA = 0;
-
-    uint16_t timer_cycles=0;
-    uint16_t div_cycles = 0;
-
-    void update_timer(uint8_t cycles) {
-        div_cycles+=cycles;
-        if (div_cycles>=256) {
-            div_cycles-=256;
-            DIV++;
-        }
-        if (!(TAC & 0x04)) {
-            return;
-        }
-
-        timer_cycles+=cycles;
-        uint16_t threshold;
-        switch (TAC & 0x03) {
-            case 0:
-            threshold = 1024;
-            break;
-
-            case 1:
-            threshold =16;
-            break;
-
-            case 2:
-            threshold=64;
-            break;
-
-            case 3:
-            threshold=256;
-            break;
-        }
-
-        while(timer_cycles>=threshold) {
-            timer_cycles-=threshold;
-            TIMA++;
-            if (TIMA==0) {
-                TIMA = TMA;
-                IF |= 0x04;
-            }
-        }
-    }
-
 
 
     uint8_t read_ROM(uint16_t address) {
@@ -107,16 +100,16 @@ struct memory {
                 return IF;
 
                 case 0xFF04:
-                return DIV;
+                return tmr.DIV;
 
                 case 0xFF05:
-                return TIMA;
+                return tmr.TIMA;
 
                 case 0xFF06:
-                return TMA;
+                return tmr.TMA;
 
                 case 0xFF07:
-                return TAC;
+                return tmr.TAC;
 
                 case 0xFF44:
                 return 0x90;
@@ -158,7 +151,7 @@ struct memory {
                 // joypad input 
             } else if (address >= 0xFF01 && address <=0xFF02) {
                 //serial transfer
-                if (serial) {cout << "SERIAL: " << (char)content <<'\n';}
+                if (serial && address==0xFF01) {cout << "SERIAL: " << (char)content <<'\n';}
             } else if (address == 0xFF0F) {
                 // interrupts
                 IF = content;
@@ -167,13 +160,13 @@ struct memory {
             } else if (address >= 0xFF30 && address <= 0xFF3F) {
                 // wave pattern
             } else if (address == 0xFF04) {
-                DIV = 0;
+                tmr.DIV = 0;
             } else if (address == 0xFF05) {
-                TIMA = content;
+                tmr.TIMA = content;
             } else if (address==0xFF06) {
-                TMA = content; // to do
+                tmr.TMA = content; // to do
             } else if (address==0xFF07) {
-                TAC = content;
+                tmr.TAC = content;
             }
 
         } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -1725,11 +1718,92 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
         }
         return cycles;
     }
+
+
+    void handle_interrupts(memory& mem) {
+        bool just_enabled = false;
+        if (IME_pending > 0) {
+            IME_pending--;
+            if (IME_pending == 0) {
+                IME = true;
+                just_enabled=true;
+            }
+        }
+        if (IME && !just_enabled) {
+            if (mem.IE & mem.IF) {
+                // v-blank interrupt
+                if ((mem.IE &1) & (mem.IF & 1)) {
+                    SP--;
+                    mem.write(SP, PC >> 8);
+                    SP--;
+                    mem.write(SP, PC & 0xFF);
+                    PC = 0x40;
+                    mem.IF = mem.IF & ~1;
+                } 
+                // LCD 
+                else if ((mem.IE &2) & (mem.IF & 2)) {
+                    SP--;
+                    mem.write(SP, PC >> 8);
+                    SP--;
+                    mem.write(SP, PC & 0xFF);
+                    PC = 0x48;
+                    mem.IF = mem.IF & ~2;
+                }
+                // timer
+                else if ((mem.IE &4) & (mem.IF & 4)) {
+                    SP--;
+                    mem.write(SP, PC >> 8);
+                    SP--;
+                    mem.write(SP, PC & 0xFF);
+                    PC = 0x50;
+                    mem.IF = mem.IF & ~4;
+                }
+                // serial
+                else if ((mem.IE & 8) & (mem.IF & 8)) {
+                    SP--;
+                    mem.write(SP, PC >> 8);
+                    SP--;
+                    mem.write(SP, PC & 0xFF);
+                    PC = 0x58;
+                    mem.IF = mem.IF & ~8;
+                }
+                // joypad
+                else if ((mem.IE & 16) & (mem.IF & 16)) {
+                    SP--;
+                    mem.write(SP, PC >> 8);
+                    SP--;
+                    mem.write(SP, PC & 0xFF);
+                    PC = 0x60;
+                    mem.IF = mem.IF & ~16;
+                }
+            }
+        }
+    }
 };
 
+void doctor_print(cpu& gb_cpu, memory& mem) {
+    cout << uppercase << hex
+        << "A:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.A]
+        << " F:" << setw(2) << setfill('0') << (int)gb_cpu.F()
+        << " B:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.B]
+        << " C:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.C]
+        << " D:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.D]
+        << " E:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.E]
+        << " H:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.H]
+        << " L:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.L]
+        << " SP:" << setw(4) << setfill('0') << (int)gb_cpu.SP
+        << " PC:" << setw(4) << setfill('0') << (int)gb_cpu.PC
+        << " PCMEM:" << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC)
+        << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+1)
+        << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+2)
+        << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+3)
+        << '\n';     
+}
+
+
 int main() {
-    auto rom_path = "./individual/02-interrupts.gb";
-    bool doctor = true;
+    auto rom_path = "./individual/11-op a,(hl).gb";
+    bool doctor = false;
     cpu gb_cpu;
     memory mem;
     // boot stuff
@@ -1750,71 +1824,16 @@ int main() {
     mem.loadROM(rom_path);
 
     while (true) {
-
-        if (gb_cpu.IME && (mem.IE & mem.IF)) {
-            auto pending = mem.IE & mem.IF;
-            auto lowest_bit = pending & -pending;
-
-            mem.IF &= ~lowest_bit;
-            gb_cpu.IME = false;
-
-            gb_cpu.SP -= 2;
-            mem.write(gb_cpu.SP + 1, (gb_cpu.PC >> 8) & 0xFF);
-            mem.write(gb_cpu.SP, gb_cpu.PC & 0xFF);
-
-            if (lowest_bit == 0x01) gb_cpu.PC = 0x0040;
-            else if (lowest_bit == 0x02) gb_cpu.PC = 0x0048;
-            else if (lowest_bit == 0x04) gb_cpu.PC = 0x0050;
-            else if (lowest_bit == 0x08) gb_cpu.PC = 0x0058;
-            else if (lowest_bit == 0x10) gb_cpu.PC = 0x0060;
-
-            mem.update_timer(20);
-            continue;
-        }
         if (!gb_cpu.halted) { 
-            if (doctor) {
-                cout << uppercase << hex
-                    << "A:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.A]
-                    << " F:" << setw(2) << setfill('0') << (int)gb_cpu.F()
-                    << " B:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.B]
-                    << " C:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.C]
-                    << " D:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.D]
-                    << " E:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.E]
-                    << " H:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.H]
-                    << " L:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.L]
-                    << " SP:" << setw(4) << setfill('0') << (int)gb_cpu.SP
-                    << " PC:" << setw(4) << setfill('0') << (int)gb_cpu.PC
-                    << " PCMEM:" << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC)
-                    << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+1)
-                    << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+2)
-                    << "," << setw(2) << setfill('0') << (int)mem.read(gb_cpu.PC+3)
-                    << '\n';
-
-                
-            }
+            if (doctor) {doctor_print(gb_cpu, mem);}
             uint8_t cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
-            mem.update_timer(cycles);
+            mem.tmr.handle_timer(cycles, mem.IF);
         } else {
-            mem.update_timer(4);
+            mem.tmr.handle_timer(4, mem.IF);
             if ((mem.IE & mem.IF) !=0) {
                 gb_cpu.halted=false;
             }
         }
-        if (gb_cpu.IME_pending > 0) {
-            gb_cpu.IME_pending--;
-            if (gb_cpu.IME_pending == 0) {
-                gb_cpu.IME = true;
-            }
-        }
-
-
-        if (debug) {cout << "Register B: " << (int)gb_cpu.registers[gb_cpu.B] << " and L: " << (int)gb_cpu.registers[gb_cpu.L] << '\n'; }
-        if ((gb_cpu.PC == 0xC2BE || gb_cpu.PC == 0xC2C0) && debug) {
-         cout << "\n[INTERRUPT TRAP] PC: " << hex << gb_cpu.PC
-         << " | IME: " << gb_cpu.IME
-         << " | IE: " << (int)mem.IE
-         << " | IF: " << (int)mem.IF << "\n\n";
-        }
+        gb_cpu.handle_interrupts(mem);
     }
-
 }
