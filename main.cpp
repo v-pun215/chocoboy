@@ -7,7 +7,7 @@
 
 using namespace std;
 bool debug = false;
-bool serial = true;
+bool serial = false;
 struct timer {
     uint8_t DIV = 0;
     uint8_t TIMA = 0;
@@ -527,8 +527,8 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 auto result = registers[A] + val;
                 flag_z = ((result & 0xFF) == 0);
                 flag_n = 0;
-                flag_h = (((registers[A] & 0x0F) + (val & 0x0F) + flag_c) > 0x0F);
-                flag_c = (result > 0x0F);
+                flag_h = (((registers[A] & 0x0F) + (val & 0x0F)) > 0x0F);
+                flag_c = (result > 0xFF);
 
                 registers[A] = result;
                 break;
@@ -595,16 +595,20 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 if (opcode == 0xBE) {
                     // CP A, [HL]
                     result = registers[A] - mem.read(HL());
+                    flag_h = (mem.read(HL()) & 0b1111) > (registers[A] & 0b1111);
+                    flag_c = mem.read(HL()) > registers[A];
                     cycles=8;
                 } else {
                     // CP A, r8
                     result = registers[A] - registers[r8];
+                    
                     cycles=4;
+                    flag_h = (registers[r8] & 0b1111) > (registers[A] & 0b1111);
+                    flag_c = registers[r8] > registers[A];
                 }
                 flag_z = (result == 0);
                 flag_n = 1;
-                flag_h = (registers[r8] & 0b1111) > (registers[A] & 0b1111);
-                flag_c = registers[r8] > registers[A];
+                
                 break;
             }
 
@@ -705,7 +709,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 // INC [HL]
                 cycles=12;
                 uint8_t curn_hl = mem.read(HL());
-                auto result = curn_hl + 1;
+                uint8_t result = curn_hl + 1;
                 flag_z = (result == 0);
                 flag_n = 0;
                 flag_h = (curn_hl & 0xF) == 0xF;
@@ -764,17 +768,20 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 }
                 flag_z = (result == 0);
                 flag_n = 1;
+                registers[A] = result;
                 break;
             }
 
             case 0xDE: {
                 // SBC A, n8
-                auto n8 = fetch(mem);
-                auto result = registers[A] - n8 - flag_c;
+                uint8_t n8 = fetch(mem);
+                uint8_t result = registers[A] - n8 - flag_c;
                 flag_z = (result == 0);
                 flag_n = 1;
                 flag_h = ((n8 & 0xF) + flag_c) > (registers[A] & 0xF);
                 flag_c = (n8 + flag_c) > registers[A];
+                registers[A] = result;
+                cycles=8;
                 break;
             }
 
@@ -797,6 +804,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 }
                 flag_z = (result == 0);
                 flag_n = 1;
+                registers[A] = result;
                 break;
             }
 
@@ -1402,16 +1410,16 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 switch (opcode_cb) {
                     case 0x40 ... 0x7F: {
                         // BIT u3,r8
-                        auto u3 = (opcode >> 3) & 0x7;
+                        auto u3 = (opcode_cb >> 3) & 0x7;
                         bool yes;
                         if (r8==6) { // BIT u3, [HL]
-                            bool yes = (mem.read(HL()) >> 3) & 0x1;
+                            yes = (mem.read(HL()) >> u3) & 0x1;
                             cycles=12;
                         } else {
-                            bool yes = (registers[r8]>>u3) & 0x1;
+                            yes = (registers[r8]>>u3) & 0x1;
                             cycles=8;
                         }
-                        flag_z = (!yes);
+                        flag_z = !yes;
                         flag_n = 0;
                         flag_h=1;
                         
@@ -1420,7 +1428,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
                     case 0x80 ... 0xBF: {
                         // RES u3, r8
-                        auto u3 = (opcode >> 3) & 0x7;
+                        auto u3 = (opcode_cb >> 3) & 0x7;
                         if (r8==6) {
                             // RES u3, [HL]
                             auto result = mem.read(HL()) & ~(1 << u3);
@@ -1436,14 +1444,14 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
                     case 0xC0 ... 0xFF: {
                         //SET u3,r8
-                        auto u3 = (opcode >> 3) & 0x7;
+                        auto u3 = (opcode_cb >> 3) & 0x7;
                         if (r8==6) {
                             // SET u3, [HL]
-                            auto result = mem.read(HL()) & (1 << u3);
+                            auto result = mem.read(HL()) | (1 << u3);
                             mem.write(HL(), result);
                             cycles=16;
                         } else {
-                            registers[r8] &= (1 << u3);
+                            registers[r8] |= (1 << u3);
                             cycles=8;
                         }
 
@@ -1618,11 +1626,11 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                         uint8_t result;
                         if (r8==6) {
                             // SWAP [HL]
-                            result = ((mem.read(HL() & 0x0F) << 4) | ((mem.read(HL() & 0xF0 >> 4))));
+                            result = (((mem.read(HL()) & 0x0F) << 4) | ((mem.read(HL()) & 0xF0) >> 4));
                             mem.write(HL(), result);
                             cycles=16;
                         } else {
-                            result = ((mem.read(HL() & 0x0F) << 4) | ((mem.read(HL() & 0xF0) >> 4)));
+                            result = ((registers[r8] & 0x0F) << 4) | ((registers[r8] & 0xF0) >> 4);
                             registers[r8] = result;
                             cycles=8;
                         }
@@ -1801,9 +1809,20 @@ void doctor_print(cpu& gb_cpu, memory& mem) {
 }
 
 
-int main() {
-    auto rom_path = "./individual/11-op a,(hl).gb";
+int main(int argc, char* argv[]) {
     bool doctor = false;
+    if (argc <2) {
+        cout << "USAGE: ROM_PATH [SERIAL/DOCTOR]\n";
+        exit(EXIT_FAILURE);
+    }
+    std::string mode = argv[2]; // Converts char* to std::string for safe comparison
+    if (mode == "SERIAL") {
+        serial = true;
+    } else if (mode == "DOCTOR") {
+        doctor = true;
+    }
+    auto rom_path = argv[1];
+    
     cpu gb_cpu;
     memory mem;
     // boot stuff
