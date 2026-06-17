@@ -10,3 +10,8 @@
  - 09-op r,r - PASSED
  - 10-bit ops - PASSED
  - 11-op a,(hl) - PASSED
+
+ # instr_timing status
+ PASSED
+
+ 

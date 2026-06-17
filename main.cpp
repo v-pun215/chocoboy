@@ -287,9 +287,11 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 } else if (destination==6 && source!=6) {
                     // LD [HL], r8
                     mem.write(HL(), registers[source]);
+                    cycles=8;
                 } else if (destination==6 && source==6) {
                     // HALT
                     halted=true; // to do
+                    cycles =0;
                 } else {
                     // LD r8, r8
                     registers[destination]=registers[source];
@@ -1684,7 +1686,7 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
                 int8_t e8 = static_cast<int8_t>(unsigned_e8);
                 uint16_t r16 = e8;
                 auto result = SP+e8;
-                cycles=16;
+                cycles=12;
                 flag_z = 0;
                 flag_n = 0;
                 flag_h = (((SP & 0x0F) + (unsigned_e8 & 0x0F)) > 0x0F) ? 1 : 0;
