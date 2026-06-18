@@ -6,10 +6,12 @@
 #include <vector>
 #include <iomanip>
 #include "timer.h"
+#include "ppu.h"
 using namespace std;
 
 struct memory {
     timer tmr;
+    PPU ppu;
     array<uint8_t, 2097000> ROM = {}; // 2MiB combined ROM
     uint8_t rom_bank = 1;
     array<uint8_t, 8192> VRAM = {}; // 8KB VRAM

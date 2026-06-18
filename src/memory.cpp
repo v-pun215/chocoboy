@@ -53,8 +53,39 @@ uint8_t memory::read(uint16_t address) {
             case 0xFF07:
             return tmr.TAC;
 
+            case 0xFF40:
+            return ppu.LCDC;
+
+            case 0xFF4A:
+            return ppu.WY;
+
+            case 0xFF4B:
+            return ppu.WX;
+            
+
             case 0xFF44:
-            return 0x90;
+            return ppu.LY;
+
+            case 0xFF45:
+            return ppu.LYC;
+
+            case 0xFF41:
+            return ppu.STAT;
+            
+            case 0xFF42: 
+            return ppu.SCY;
+
+            case 0xFF43:
+            return ppu.SCX;
+
+            case 0xFF47:
+            return ppu.BGP;
+
+            case 0xFF48:
+            return ppu.OBP0;
+
+            case 0xFF49:
+            return ppu.OBP1;
         }
         return 0xFF; // for now
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -109,6 +140,52 @@ void memory::write(uint16_t address, uint8_t content) {
             tmr.TMA = content; // to do
         } else if (address==0xFF07) {
             tmr.TAC = content;
+        }
+
+        switch (address) {
+            case 0xFF4A:
+            ppu.WY = content;
+            break;
+
+            case 0xFF4B:
+            ppu.WX = content;
+            break;
+
+            case 0xFF40:
+            ppu.LCDC = content;
+            break;
+
+            case 0xFF44:
+            // read only
+            break;
+
+            case 0xFF45:
+            ppu.LYC = content;
+            break;
+
+            case 0xFF41:
+            ppu.STAT = content;
+            break;
+
+            case 0xFF42:
+            ppu.SCY = content;
+            break;
+
+            case 0xFF43:
+            ppu.SCX = content;
+            break;
+
+            case 0xFF47:
+            ppu.BGP = content;
+            break;
+
+            case 0xFF48:
+            ppu.OBP0 = content;
+            break;
+
+            case 0xFF49:
+            ppu.OBP1 = content;
+            break;
         }
 
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM

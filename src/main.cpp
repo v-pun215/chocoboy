@@ -8,6 +8,7 @@
 #include "timer.h"
 #include "memory.h"
 #include "cpu.h"
+#include "ppu.h"
 using namespace std;
 
 
@@ -43,11 +44,13 @@ int main(int argc, char* argv[]) {
         cout << "USAGE: ROM_PATH [SERIAL/DOCTOR]\n";
         exit(EXIT_FAILURE);
     }
-    std::string mode = argv[2]; // Converts char* to std::string for safe comparison
-    if (mode == "SERIAL") {
-        serial = true;
-    } else if (mode == "DOCTOR") {
-        doctor = true;
+    if (argc>2) {
+        std::string mode = argv[2]; // Converts char* to std::string for safe comparison
+        if (mode == "SERIAL") {
+            serial = true;
+        } else if (mode == "DOCTOR") {
+            doctor = true;
+        }
     }
     auto rom_path = argv[1];
     
@@ -69,12 +72,16 @@ int main(int argc, char* argv[]) {
     gb_cpu.flag_c=1;
 
     mem.loadROM(rom_path);
+    //PPU ppu;
+    //ppu.initSDL();
 
     while (true) {
+        cout << "LY: " << (int)mem.ppu.LY << '\n';
         if (!gb_cpu.halted) { 
             if (doctor) {doctor_print(gb_cpu, mem);}
             uint8_t cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
             mem.tmr.handle_timer(cycles, mem.IF);
+            mem.ppu.update(cycles, mem.IF);
         } else {
             mem.tmr.handle_timer(4, mem.IF);
             if ((mem.IE & mem.IF) !=0) {
