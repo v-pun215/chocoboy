@@ -1,6 +1,9 @@
 #include <iostream>
 #include <SDL.h>
 #include "ppu.h"
+#include "cpu.h"
+#include "memory.h"
+#include <vector>
 using namespace std;
 
 void PPU::initSDL() {
@@ -8,10 +11,11 @@ void PPU::initSDL() {
     SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
     SDL_CreateWindowAndRenderer(160, 144, 0, &window, &renderer);
     SDL_SetWindowSize(window, 480, 432);
-    SDL_SetWindowResizable(window, SDL_TRUE);
+    SDL_SetWindowResizable(window, SDL_FALSE);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
 }
 
-void PPU::update(uint8_t cycles, uint8_t& IF) {
+void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -26,7 +30,7 @@ void PPU::update(uint8_t cycles, uint8_t& IF) {
         if (cycles_in_mode >= 172) {
             cycles_in_mode-=172;
             ppu_mode = H_BLANK;
-            // render_scanline();
+            render_scanline(mem);
         }
         break;
 
@@ -49,6 +53,9 @@ void PPU::update(uint8_t cycles, uint8_t& IF) {
             LY++;
             if (LY>153) {
                 LY=0;
+                SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
+                SDL_RenderCopy(renderer, texture, NULL, NULL);
+                SDL_RenderPresent(renderer);
                 ppu_mode = OAM_SCAN;
             }
         }
@@ -56,4 +63,91 @@ void PPU::update(uint8_t cycles, uint8_t& IF) {
     }
 
     STAT = (STAT & 0xFC) | ppu_mode;
+}
+
+uint8_t PPU::tile_pixel_color(uint8_t x, uint8_t low_byte, uint8_t high_byte) {
+    uint8_t low_bit = (low_byte >> (7-x)) & 1;
+    uint8_t high_bit = (high_byte >> (7-x)) & 1;
+    uint8_t palette_index = (high_bit << 1) | low_bit;
+    return palette_index;
+
+}
+
+uint8_t get_palette_shade(uint8_t palette, uint8_t index) {
+    uint8_t high_bit = (palette >> 2*index+1) & 1;
+    uint8_t low_bit = (palette >> 2*index) & 1;
+    uint8_t shade = (high_bit << 1) | low_bit;
+    return shade;
+}
+
+void PPU::render_scanline(memory& mem) {
+    for (uint8_t x=0; x<160;x++) {
+        uint8_t bg_x = (x + SCX) % 256;
+        uint8_t bg_y = (LY + SCY) % 256;
+        uint8_t tile_col = bg_x/8;
+        uint8_t tile_pixel_x = bg_x%8;
+        uint8_t tile_row = bg_y/8;
+        uint8_t tile_pixel_y = bg_y%8;
+        bool tile_map_area = (LCDC >> 3) & 1;
+        uint16_t stored_address;
+        if (tile_map_area) {
+            stored_address = 0x9C00;
+        } else {
+            stored_address = 0x9800;
+        }
+        uint8_t tile_index = mem.read(stored_address + tile_row * 32 + tile_col);
+
+        bool tile_data_area = (LCDC >> 4) & 1;
+
+        uint16_t address;
+        if (tile_data_area) {
+            address = 0x8000 + tile_index*16;
+        } else {
+            address = 0x9000 + (int8_t)tile_index *16;
+        }
+
+        uint16_t row_address = address + tile_pixel_y*2;
+        uint8_t color_index = tile_pixel_color(tile_pixel_x, mem.read(row_address), mem.read(row_address+1));
+
+        uint8_t shade = get_palette_shade(BGP, color_index);
+        // colors
+        tuple<int, int, int> white{255,255,255};
+        tuple<int, int, int> light_gray{170, 170, 170};
+        tuple<int, int, int> dark_gray{85,85,85};
+        tuple<int, int, int> black{0,0,0};
+        int R, G, B;
+        switch (shade) {
+            case 0:
+            R = get<0>(white);
+            G = get<1>(white);
+            B = get<2>(white);
+            break;
+
+            case 1:
+            R = get<0>(light_gray);
+            G = get<1>(light_gray);
+            B = get<2>(light_gray);
+            break; 
+            
+            case 2:
+            R = get<0>(dark_gray);
+            G = get<1>(dark_gray);
+            B = get<2>(dark_gray);
+            break;
+
+            case 3:
+            R = get<0>(black);
+            G = get<1>(black);
+            B = get<2>(black);
+            break;
+        }   
+
+        int offset = (LY*160+x)*3;
+
+        //write to framebuffer
+        framebuffer[offset]=R;
+        framebuffer[offset+1]=G;
+        framebuffer[offset+2]=B;        
+
+    }
 }

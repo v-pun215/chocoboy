@@ -13,6 +13,8 @@ struct memory {
     timer tmr;
     PPU ppu;
     array<uint8_t, 2097000> ROM = {}; // 2MiB combined ROM
+    array<uint8_t, 256> boot_ROM={};
+    bool boot_enabled = true;
     uint8_t rom_bank = 1;
     array<uint8_t, 8192> VRAM = {}; // 8KB VRAM
     array<uint8_t, 8192> ERAM = {}; // 8KB External RAM (local game storage?)
@@ -30,4 +32,5 @@ struct memory {
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t content);
     void loadROM(string path);
+    void boot(string boot_path);
 };

@@ -1,6 +1,7 @@
 #pragma once
 #include <SDL.h>
 
+struct memory;
 struct PPU {
     // SDL stuff
     SDL_Renderer* renderer;
@@ -37,5 +38,7 @@ struct PPU {
     unsigned char framebuffer[160 * 144 *3]; // RGB24
     unsigned char framebufferA[160 * 144 * 3]; // RGBA24 needed to draw multiple framebuffers on top of each other
 
-    void update(uint8_t cycle, uint8_t& IF);
+    void update(uint8_t cycle, uint8_t& IF, memory& mem);
+    uint8_t tile_pixel_color(uint8_t x, uint8_t low, uint8_t high);
+    void render_scanline(memory& mem);
 };

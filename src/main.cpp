@@ -57,6 +57,7 @@ int main(int argc, char* argv[]) {
     cpu gb_cpu;
     memory mem;
     // boot stuff
+    /*
     gb_cpu.registers[gb_cpu.A] = 0x01;
     gb_cpu.registers[gb_cpu.B] = 0x00;
     gb_cpu.registers[gb_cpu.C] = 0x13;
@@ -69,19 +70,30 @@ int main(int argc, char* argv[]) {
     gb_cpu.flag_z =1;
     gb_cpu.flag_n=0;
     gb_cpu.flag_h=1;
-    gb_cpu.flag_c=1;
-
+    gb_cpu.flag_c=1;*/
+    mem.boot("../test/dmg_boot.bin");
     mem.loadROM(rom_path);
+    mem.ppu.initSDL();
     //PPU ppu;
     //ppu.initSDL();
 
     while (true) {
-        cout << "LY: " << (int)mem.ppu.LY << '\n';
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                exit(0); // or some cleaner shutdown
+            }
+        }
+        if (gb_cpu.PC == 0x00E0) { // adjust after checking boot ROM
+            std::ofstream f("bgmap.bin", std::ios::binary);
+            f.write((char*)&mem.VRAM[0x1800], 0x800);   // 0x9800-0x9FFF
+        }
+        //cout << "LY: " << (int)mem.ppu.LY << '\n';
         if (!gb_cpu.halted) { 
             if (doctor) {doctor_print(gb_cpu, mem);}
             uint8_t cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
             mem.tmr.handle_timer(cycles, mem.IF);
-            mem.ppu.update(cycles, mem.IF);
+            mem.ppu.update(cycles, mem.IF, mem);
         } else {
             mem.tmr.handle_timer(4, mem.IF);
             if ((mem.IE & mem.IF) !=0) {

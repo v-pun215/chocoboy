@@ -22,6 +22,9 @@ uint8_t memory::read_ROM(uint16_t address) {
 uint8_t memory::read(uint16_t address) {
     if (debug){cout << "READ ADDRESS: " << hex<<address << '\n';}
     if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
+        if (boot_enabled && address >=0x0000 && address <= 0x00FF) {
+            return boot_ROM[address];
+        }
         return read_ROM(address);
     } else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
         return VRAM[address-0x8000];
@@ -86,6 +89,9 @@ uint8_t memory::read(uint16_t address) {
 
             case 0xFF49:
             return ppu.OBP1;
+            
+            case 0xFF50:
+            return boot_enabled ? 0 : 1;
         }
         return 0xFF; // for now
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -140,6 +146,8 @@ void memory::write(uint16_t address, uint8_t content) {
             tmr.TMA = content; // to do
         } else if (address==0xFF07) {
             tmr.TAC = content;
+        }  else if (address == 0xFF50) {
+            boot_enabled = false;
         }
 
         switch (address) {
@@ -211,7 +219,7 @@ void memory::loadROM(string path) { // to-do: implement MBC
             istreambuf_iterator<char>()
         );
         if (buffer.size()<32768) { // less than 32 KiB
-            cout << "error: ROM invalid - too small\n";
+            //cout << "error: ROM invalid - too small\n";
         } else if (buffer.size()<32768) {
             cout << "error: ROM too big for current implementation\n";
             throw runtime_error("cannot copy ROM into memory");
@@ -224,6 +232,34 @@ void memory::loadROM(string path) { // to-do: implement MBC
         );
 
         if (debug) {cout << "ROM loaded successfully!\n";}
+    } catch (const exception& e){
+        cerr << "Caught: " << e.what() << '\n';
+        exit(EXIT_FAILURE);
+    }
+}
+
+void memory::boot(string boot_rom) {
+    cout << "Booting...\n";
+    try {
+        ifstream rom(boot_rom, ios::binary);
+        if (!rom.is_open()) {
+            cout << "error: could not open BOOT ROM\n";
+            throw runtime_error("cannot open BOOT ROM");
+        }
+        
+
+        vector<uint8_t> buffer(
+            (istreambuf_iterator<char>(rom)),
+            istreambuf_iterator<char>()
+        );
+        
+        copy(
+            buffer.begin(),
+            buffer.end(),
+            boot_ROM.begin()
+        );
+
+        if (debug) {cout << "BOOT ROM loaded successfully!\n";}
     } catch (const exception& e){
         cerr << "Caught: " << e.what() << '\n';
         exit(EXIT_FAILURE);
