@@ -81,12 +81,8 @@ int main(int argc, char* argv[]) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
-                exit(0); // or some cleaner shutdown
+                exit(0);
             }
-        }
-        if (gb_cpu.PC == 0x00E0) { // adjust after checking boot ROM
-            std::ofstream f("bgmap.bin", std::ios::binary);
-            f.write((char*)&mem.VRAM[0x1800], 0x800);   // 0x9800-0x9FFF
         }
         //cout << "LY: " << (int)mem.ppu.LY << '\n';
         if (!gb_cpu.halted) { 
