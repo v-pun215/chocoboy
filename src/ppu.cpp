@@ -15,6 +15,102 @@ void PPU::initSDL() {
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
 }
 
+void PPU::cycleSDL(memory& mem) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_QUIT) {
+            exit(0);
+        } else if (event.type == SDL_KEYDOWN) {
+            if (event.key.repeat == 0) {
+
+                switch (event.key.keysym.sym) {
+                    case SDLK_w:
+                    cout << "UP\n";
+                    mem.joy.up = true;
+                    break;
+
+                    case SDLK_a:
+                    cout << "LEFT\n";
+                    mem.joy.left = true;
+                    break;
+
+                    case SDLK_s:
+                    cout << "DOWN\n";
+                    mem.joy.down = true;
+                    break;
+
+                    case SDLK_d:
+                    cout << "RIGHT\n";
+                    mem.joy.right = true;
+                    break;
+
+                    case SDLK_o:
+                    cout << "A\n";
+                    mem.joy.A = true;
+                    break;
+
+                    case SDLK_p:
+                    cout << "B\n";
+                    mem.joy.B = true;
+                    break;
+
+                    case SDLK_k:
+                    cout << "SELECT\n";
+                    mem.joy.select = true;
+                    break;
+
+                    case SDLK_l:
+                    cout << "START\n";
+                    mem.joy.start = true;
+                    break;
+                }
+            }
+        } else if (event.type == SDL_KEYUP) {
+            switch (event.key.keysym.sym) {
+                case SDLK_w:
+                cout << "UP lifted\n";
+                mem.joy.up = false;
+                break;
+
+                case SDLK_a:
+                cout << "LEFT lifted\n";
+                mem.joy.left = false;
+                break;
+
+                case SDLK_s:
+                cout << "DOWN lifted\n";
+                mem.joy.down = false;
+                break;
+
+                case SDLK_d:
+                cout << "RIGHT lifted\n";
+                mem.joy.right = false;
+                break;
+
+                case SDLK_o:
+                cout << "A lifted\n";
+                mem.joy.A = false;
+                break;
+
+                case SDLK_p:
+                cout << "B lifted\n";
+                mem.joy.B = false;
+                break;
+
+                case SDLK_k:
+                cout << "SELECT lifted\n";
+                mem.joy.select = false;
+                break;
+
+                case SDLK_l:
+                cout << "START lifted\n";
+                mem.joy.start = false;
+                break;
+            }
+        }
+    }
+}
+
 void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
     cycles_in_mode+=cycles;
 

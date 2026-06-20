@@ -6,10 +6,12 @@
 #include <vector>
 #include <iomanip>
 #include "timer.h"
+#include "joypad.h"
 #include "ppu.h"
 using namespace std;
 
 struct memory {
+    joypad joy;
     timer tmr;
     PPU ppu;
     array<uint8_t, 2097000> ROM = {}; // 2MiB combined ROM

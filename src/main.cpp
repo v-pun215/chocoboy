@@ -78,12 +78,7 @@ int main(int argc, char* argv[]) {
     //ppu.initSDL();
 
     while (true) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                exit(0);
-            }
-        }
+        mem.ppu.cycleSDL(mem);
         //cout << "LY: " << (int)mem.ppu.LY << '\n';
         if (!gb_cpu.halted) { 
             if (doctor) {doctor_print(gb_cpu, mem);}

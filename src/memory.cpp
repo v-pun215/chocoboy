@@ -41,6 +41,10 @@ uint8_t memory::read(uint16_t address) {
     } else if (address >= 0xFF00 && address <= 0xFF7F) { // implment io ranges
         if (debug){cout << "I/O ADDRESS CALLED: " << address << '\n';}
         switch (address) {
+            case 0xFF00:
+            // joypad
+            return joy.read_joyp();
+
             case 0xFF0F:
             return IF;
 
@@ -128,6 +132,7 @@ void memory::write(uint16_t address, uint8_t content) {
         
         if (address == 0xFF00) {
             // joypad input 
+            joy.write_selected(content);
         } else if (address >= 0xFF01 && address <=0xFF02) {
             //serial transfer
             if (serial && address==0xFF01) {cout << "SERIAL: " << (char)content <<'\n';}

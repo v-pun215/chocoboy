@@ -7,6 +7,7 @@ struct PPU {
     SDL_Renderer* renderer;
     SDL_Window* window;
     SDL_Texture* texture;
+    void cycleSDL(memory& mem);
     void initSDL();
 
 
