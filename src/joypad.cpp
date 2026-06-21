@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <iostream>
 #include "joypad.h"
 
@@ -46,6 +47,5 @@ uint8_t joypad::read_joyp() {
             JOYP&=~0x8;
         }
     }
-    cout << "JOYP read: " << hex << (int)JOYP << " select_btns=" << select_btns << " select_dpad=" << select_dpad << '\n';
     return JOYP;
 }

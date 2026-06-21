@@ -176,15 +176,23 @@ uint8_t PPU::get_palette_shade(uint8_t palette, uint8_t index) {
     return shade;
 }
 
-vector<uint8_t> PPU::get_visible_sprites(vector<uint8_t>& OAM) {
-    for (int i=0;i<10;i+=4) {
+vector<PPU::sprite> PPU::get_visible_sprites(array<uint8_t, 160>& OAM, uint8_t LY) {
+    vector<PPU::sprite> visible{};
+    for (int i=0;i<160 && visible.size() < 10;i+=4) {
         uint8_t byte0 = OAM[i]; // y
-        uint8_t byte1 = OAM[i]; // x
-        uint8_t byte2 = OAM[i]; // tile index
-        uint8_t byte3 = OAM[i]; // attr/flags
+        uint8_t byte1 = OAM[i+1]; // x
+        uint8_t byte2 = OAM[i+2]; // tile index
+        uint8_t byte3 = OAM[i+3]; // attr/flagsb
         
+        int real_y = byte0-16;
+        int height=8;
+        
+        if (LY >= real_y && LY < (height + real_y)) {
+            visible.push_back({byte0, byte1, byte2, byte3});
+        }
         
     } 
+    return visible;
 }
 
 void PPU::render_scanline(memory& mem) {
@@ -217,6 +225,40 @@ void PPU::render_scanline(memory& mem) {
         uint8_t color_index = tile_pixel_color(tile_pixel_x, mem.read(row_address), mem.read(row_address+1));
 
         uint8_t shade = get_palette_shade(BGP, color_index);
+
+
+        // oam
+        vector<sprite> visible_sprites = get_visible_sprites(mem.OAM, LY);
+        for (sprite sprt : visible_sprites) {
+            int real_sprt_x = (int)sprt.x-8;
+            int real_sprt_y = (int)sprt.y-16;
+            if (x >= real_sprt_x && x < real_sprt_x + 8) {
+                uint8_t sprt_col = x - real_sprt_x;
+                bool x_flip = (sprt.attr_flags >> 5) & 1;
+                if (x_flip) {
+                    sprt_col = 7-sprt_col;
+                }
+                uint8_t sprt_row = LY - real_sprt_y;
+                bool y_flip = (sprt.attr_flags >> 6) & 1;
+                if (y_flip) {
+                    sprt_row = 7-sprt_row;
+                }
+                uint16_t sprt_tile_address = 0x8000 + sprt.tile_index*16;
+                uint16_t sprt_row_address = sprt_tile_address + sprt_row*2;
+
+                uint8_t color_index_sprt = tile_pixel_color(sprt_col, mem.read(sprt_row_address), mem.read(sprt_row_address+1));
+                if (color_index_sprt!=0) {
+                    color_index = color_index_sprt;
+
+                    bool palette = (sprt.attr_flags >> 4) & 1;
+                    if (palette) {
+                        shade = get_palette_shade(OBP1, color_index);
+                    } else {
+                        shade = get_palette_shade(OBP0, color_index);
+                    }
+                }
+            }
+        }
         // colors
         tuple<int, int, int> white{255,255,255};
         tuple<int, int, int> light_gray{170, 170, 170};
@@ -241,8 +283,6 @@ void PPU::render_scanline(memory& mem) {
             chosen_color = black;
             break;
         }
-
-        // oam
 
 
         int offset = (LY*160+x)*3;

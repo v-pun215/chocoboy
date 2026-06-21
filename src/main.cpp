@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     gb_cpu.flag_n=0;
     gb_cpu.flag_h=1;
     gb_cpu.flag_c=1;*/
-    mem.boot("../test/dmg_boot.bin");
+    mem.boot("./roms/dmg_boot.bin");
     mem.loadROM(rom_path);
     mem.ppu.initSDL();
     //PPU ppu;

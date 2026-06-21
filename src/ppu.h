@@ -1,5 +1,10 @@
 #pragma once
 #include <SDL.h>
+#include <vector>
+#include <array>
+#include <cstdint>
+
+using namespace std;
 
 struct memory;
 struct PPU {
@@ -42,6 +47,14 @@ struct PPU {
     void update(uint8_t cycle, uint8_t& IF, memory& mem);
     uint8_t tile_pixel_color(uint8_t x, uint8_t low, uint8_t high);
     uint8_t get_palette_shade(uint8_t palette, uint8_t index) ;
-    vector<uint8_t> get_visible_sprites(vector<uint8_t>& OAM);
+
+    struct sprite {
+        uint8_t y;
+        uint8_t x;
+        uint8_t tile_index;
+        uint8_t attr_flags;
+    };
+
+    vector<PPU::sprite> get_visible_sprites(array<uint8_t, 160>& OAM, uint8_t LY);
     void render_scanline(memory& mem);
 };
