@@ -169,11 +169,22 @@ uint8_t PPU::tile_pixel_color(uint8_t x, uint8_t low_byte, uint8_t high_byte) {
 
 }
 
-uint8_t get_palette_shade(uint8_t palette, uint8_t index) {
+uint8_t PPU::get_palette_shade(uint8_t palette, uint8_t index) {
     uint8_t high_bit = (palette >> 2*index+1) & 1;
     uint8_t low_bit = (palette >> 2*index) & 1;
     uint8_t shade = (high_bit << 1) | low_bit;
     return shade;
+}
+
+vector<uint8_t> PPU::get_visible_sprites(vector<uint8_t>& OAM) {
+    for (int i=0;i<10;i+=4) {
+        uint8_t byte0 = OAM[i]; // y
+        uint8_t byte1 = OAM[i]; // x
+        uint8_t byte2 = OAM[i]; // tile index
+        uint8_t byte3 = OAM[i]; // attr/flags
+        
+        
+    } 
 }
 
 void PPU::render_scanline(memory& mem) {
@@ -212,38 +223,33 @@ void PPU::render_scanline(memory& mem) {
         tuple<int, int, int> dark_gray{85,85,85};
         tuple<int, int, int> black{0,0,0};
         int R, G, B;
+        tuple<int, int, int> chosen_color;
         switch (shade) {
             case 0:
-            R = get<0>(white);
-            G = get<1>(white);
-            B = get<2>(white);
+            chosen_color = white;
             break;
 
             case 1:
-            R = get<0>(light_gray);
-            G = get<1>(light_gray);
-            B = get<2>(light_gray);
+            chosen_color = light_gray;
             break; 
             
             case 2:
-            R = get<0>(dark_gray);
-            G = get<1>(dark_gray);
-            B = get<2>(dark_gray);
+            chosen_color = dark_gray;
             break;
 
             case 3:
-            R = get<0>(black);
-            G = get<1>(black);
-            B = get<2>(black);
+            chosen_color = black;
             break;
-        }   
+        }
+
+        // oam
+
 
         int offset = (LY*160+x)*3;
 
         //write to framebuffer
-        framebuffer[offset]=R;
-        framebuffer[offset+1]=G;
-        framebuffer[offset+2]=B;        
-
+        framebuffer[offset]=get<0>(chosen_color);
+        framebuffer[offset+1]=get<1>(chosen_color);
+        framebuffer[offset+2]=get<2>(chosen_color);
     }
 }

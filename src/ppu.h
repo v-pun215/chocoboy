@@ -41,5 +41,7 @@ struct PPU {
 
     void update(uint8_t cycle, uint8_t& IF, memory& mem);
     uint8_t tile_pixel_color(uint8_t x, uint8_t low, uint8_t high);
+    uint8_t get_palette_shade(uint8_t palette, uint8_t index) ;
+    vector<uint8_t> get_visible_sprites(vector<uint8_t>& OAM);
     void render_scanline(memory& mem);
 };
