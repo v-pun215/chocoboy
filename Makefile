@@ -8,8 +8,8 @@ DEBUG_FLAGS = -g
 
 ifeq ($(UNAME_S),Darwin)
     CXX = /opt/homebrew/bin/g++-15
-    CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS)
-    LDFLAGS = 
+    CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) -I/opt/homebrew/include/SDL2
+    LDFLAGS = -L/opt/homebrew/lib -lSDL2
 else ifeq ($(UNAME_S),Linux)
     CXX = /usr/bin/g++
     CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) -I/usr/include/SDL2

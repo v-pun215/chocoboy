@@ -112,6 +112,15 @@ void PPU::cycleSDL(memory& mem) {
 }
 
 void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
+    /*bool LCD_enable = LCDC & 0x80;
+    if (!LCD_enable) { // lcd off
+        
+        cycles_in_mode=0;
+        LY=0;
+        ppu_mode=H_BLANK;
+        STAT&=0x7c;
+        return;
+    }*/
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -149,6 +158,7 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
             LY++;
             if (LY>153) {
                 LY=0;
+                window_y=0;
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
                 SDL_RenderPresent(renderer);
@@ -159,6 +169,14 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
     }
 
     STAT = (STAT & 0xFC) | ppu_mode;
+    if (LY == LYC) {
+        STAT |= 0x04;
+        if (STAT & 0x40) {
+            IF |= 0x02; 
+        }
+    } else {
+        STAT &= ~0x04;
+    }
 }
 
 uint8_t PPU::tile_pixel_color(uint8_t x, uint8_t low_byte, uint8_t high_byte) {
@@ -185,7 +203,7 @@ vector<PPU::sprite> PPU::get_visible_sprites(array<uint8_t, 160>& OAM, uint8_t L
         uint8_t byte3 = OAM[i+3]; // attr/flagsb
         
         int real_y = byte0-16;
-        int height=8;
+        int height = (LCDC & 0x04) ? 16 : 8;
         
         if (LY >= real_y && LY < (height + real_y)) {
             visible.push_back({byte0, byte1, byte2, byte3});
@@ -196,6 +214,10 @@ vector<PPU::sprite> PPU::get_visible_sprites(array<uint8_t, 160>& OAM, uint8_t L
 }
 
 void PPU::render_scanline(memory& mem) {
+
+
+    vector<sprite> visible_sprites = get_visible_sprites(mem.OAM, LY);
+    bool window_drawn_this_scanline = false;
     for (uint8_t x=0; x<160;x++) {
         uint8_t bg_x = (x + SCX) % 256;
         uint8_t bg_y = (LY + SCY) % 256;
@@ -223,13 +245,53 @@ void PPU::render_scanline(memory& mem) {
 
         uint16_t row_address = address + tile_pixel_y*2;
         uint8_t color_index = tile_pixel_color(tile_pixel_x, mem.read(row_address), mem.read(row_address+1));
+        uint8_t final_color_index = color_index;
 
         uint8_t shade = get_palette_shade(BGP, color_index);
+        bool bg_enable = LCDC & 1;
+        if (!bg_enable) {
+            color_index = 0;
+            shade = 0;
+        }
 
+
+        // window
+        bool window_enable = (LCDC >> 5) & 1;
+        if (window_enable) {
+            if (LY >= WY && x >= (int)WX - 7) {
+                uint8_t window_tilemap_col = (x- (WX - 7))/8;
+                uint8_t pixel_col = (x - (WX - 7))%8;
+                uint8_t window_tilemap_row = window_y/8;
+                uint8_t pixel_row = window_y%8;
+                bool window_tilemap = (LCDC >> 6) & 1;
+                uint16_t starting_wind_addr;
+                if (window_tilemap) {
+                    starting_wind_addr = 0x9C00;
+                } else {
+                    starting_wind_addr = 0x9800;
+                }
+                uint8_t window_tile_index = mem.read(starting_wind_addr + window_tilemap_row*32 + window_tilemap_col);
+                bool tile_data_area = (LCDC >> 4) & 1;
+
+                uint16_t address;
+                if (tile_data_area) {
+                    address = 0x8000 + window_tile_index*16;
+                } else {
+                    address = 0x9000 + (int8_t)window_tile_index *16;
+                }
+                uint16_t row_address = address + pixel_row*2;
+                uint8_t color_index = tile_pixel_color(pixel_col, mem.read(row_address), mem.read(row_address+1));
+                final_color_index = color_index;
+                shade = get_palette_shade(BGP, color_index);
+                window_drawn_this_scanline=true;
+
+            }
+        }
 
         // oam
-        vector<sprite> visible_sprites = get_visible_sprites(mem.OAM, LY);
-        for (sprite sprt : visible_sprites) {
+        
+        for (auto it = visible_sprites.rbegin(); it != visible_sprites.rend(); ++it) {
+            sprite sprt = *it;
             int real_sprt_x = (int)sprt.x-8;
             int real_sprt_y = (int)sprt.y-16;
             if (x >= real_sprt_x && x < real_sprt_x + 8) {
@@ -238,27 +300,41 @@ void PPU::render_scanline(memory& mem) {
                 if (x_flip) {
                     sprt_col = 7-sprt_col;
                 }
+                int sprite_height = (LCDC & 0x04) ? 16 : 8;
                 uint8_t sprt_row = LY - real_sprt_y;
                 bool y_flip = (sprt.attr_flags >> 6) & 1;
                 if (y_flip) {
-                    sprt_row = 7-sprt_row;
+                    sprt_row = (sprite_height-1) -sprt_row;
                 }
-                uint16_t sprt_tile_address = 0x8000 + sprt.tile_index*16;
-                uint16_t sprt_row_address = sprt_tile_address + sprt_row*2;
+                uint8_t sprt_tile_index = sprt.tile_index;
+                if (sprite_height == 16) {
+                    sprt_tile_index &= 0xFE;
+                    if (sprt_row >= 8) {
+                        sprt_tile_index |= 0x01; // Fetch the bottom tile
+                    }
+                }
+                uint16_t sprt_tile_address = 0x8000 + sprt_tile_index*16;
+                uint16_t sprt_row_address = sprt_tile_address + (sprt_row%8)*2;
 
                 uint8_t color_index_sprt = tile_pixel_color(sprt_col, mem.read(sprt_row_address), mem.read(sprt_row_address+1));
+                bool behind_bg = (sprt.attr_flags >> 7)&1;
                 if (color_index_sprt!=0) {
-                    color_index = color_index_sprt;
-
-                    bool palette = (sprt.attr_flags >> 4) & 1;
-                    if (palette) {
-                        shade = get_palette_shade(OBP1, color_index);
-                    } else {
-                        shade = get_palette_shade(OBP0, color_index);
+                    bool should_draw = !behind_bg || (final_color_index == 0);
+                    if (should_draw) {
+                        bool palette = (sprt.attr_flags >> 4) & 1;
+                        if (palette) {
+                            shade = get_palette_shade(OBP1, color_index_sprt);
+                        } else {
+                            shade = get_palette_shade(OBP0, color_index_sprt);
+                        }
                     }
                 }
             }
         }
+
+
+
+
         // colors
         tuple<int, int, int> white{255,255,255};
         tuple<int, int, int> light_gray{170, 170, 170};
@@ -291,5 +367,8 @@ void PPU::render_scanline(memory& mem) {
         framebuffer[offset]=get<0>(chosen_color);
         framebuffer[offset+1]=get<1>(chosen_color);
         framebuffer[offset+2]=get<2>(chosen_color);
+    }
+    if (window_drawn_this_scanline) {
+        window_y++;
     }
 }

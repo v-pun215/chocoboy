@@ -28,6 +28,8 @@ struct PPU {
     uint8_t WY = 0;
     uint8_t WX = 0;
 
+    uint8_t window_y = 0;
+
     enum ppu_modes {
         H_BLANK,
         V_BLANK,
