@@ -826,6 +826,7 @@ uint8_t cpu::decode(uint8_t opcode, memory& mem) { //returns no of cycles took
 
         case 0xFB: {
             // EI
+            cout << "EI executed, pending was " << (int)IME_pending << "\n";
             IME_pending = 2;
             cycles=4;
             break;
@@ -1512,7 +1513,11 @@ void cpu::handle_interrupts(memory& mem) {
             just_enabled=true;
         }
     }
+    if (mem.ppu.LY == 0) {
+        cout << "IME=" << IME << " IE=" << hex << (int)mem.IE << " IF=" << (int)mem.IF << "\n";
+    }
     if (IME && !just_enabled) {
+
         if (mem.IE & mem.IF) {
             // v-blank interrupt
             if ((mem.IE &1) & (mem.IF & 1)) {
@@ -1529,6 +1534,7 @@ void cpu::handle_interrupts(memory& mem) {
                 mem.write(SP, PC >> 8);
                 SP--;
                 mem.write(SP, PC & 0xFF);
+                cout << "LCD STAT interrupt dispatched! LY=" << (int)mem.ppu.LY << " LYC=" << (int)mem.ppu.LYC << "\n";
                 PC = 0x48;
                 mem.IF = mem.IF & ~2;
             }

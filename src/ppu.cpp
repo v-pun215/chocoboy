@@ -25,85 +25,77 @@ void PPU::cycleSDL(memory& mem) {
 
                 switch (event.key.keysym.sym) {
                     case SDLK_w:
-                    cout << "UP\n";
                     mem.joy.up = true;
+                    mem.IF |= 0x10;
                     break;
 
                     case SDLK_a:
-                    cout << "LEFT\n";
                     mem.joy.left = true;
+                    mem.IF |= 0x10;
                     break;
 
                     case SDLK_s:
-                    cout << "DOWN\n";
                     mem.joy.down = true;
+                    mem.IF |= 0x10;
                     break;
 
                     case SDLK_d:
-                    cout << "RIGHT\n";
                     mem.joy.right = true;
+                    mem.IF |= 0x10;
                     break;
 
                     case SDLK_o:
-                    cout << "A\n";
                     mem.joy.A = true;
+                    mem.IF |= 0x10;
                     break;
 
                     case SDLK_p:
-                    cout << "B\n";
                     mem.joy.B = true;
+                    mem.IF |= 0x10;
                     break;
 
                     case SDLK_k:
-                    cout << "SELECT\n";
                     mem.joy.select = true;
+                    mem.IF |= 0x10;
                     break;
 
                     case SDLK_l:
-                    cout << "START\n";
                     mem.joy.start = true;
+                    mem.IF |= 0x10;
                     break;
                 }
             }
         } else if (event.type == SDL_KEYUP) {
             switch (event.key.keysym.sym) {
                 case SDLK_w:
-                cout << "UP lifted\n";
                 mem.joy.up = false;
                 break;
 
                 case SDLK_a:
-                cout << "LEFT lifted\n";
                 mem.joy.left = false;
                 break;
 
                 case SDLK_s:
-                cout << "DOWN lifted\n";
                 mem.joy.down = false;
                 break;
 
                 case SDLK_d:
-                cout << "RIGHT lifted\n";
                 mem.joy.right = false;
                 break;
 
                 case SDLK_o:
-                cout << "A lifted\n";
                 mem.joy.A = false;
                 break;
 
                 case SDLK_p:
-                cout << "B lifted\n";
                 mem.joy.B = false;
                 break;
 
                 case SDLK_k:
-                cout << "SELECT lifted\n";
                 mem.joy.select = false;
                 break;
 
                 case SDLK_l:
-                cout << "START lifted\n";
                 mem.joy.start = false;
                 break;
             }
@@ -112,15 +104,14 @@ void PPU::cycleSDL(memory& mem) {
 }
 
 void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
-    /*bool LCD_enable = LCDC & 0x80;
+    /*bool LCD_enable = (LCDC >> 7)&1;
     if (!LCD_enable) { // lcd off
-        
-        cycles_in_mode=0;
-        LY=0;
-        ppu_mode=H_BLANK;
-        STAT&=0x7c;
         return;
     }*/
+    cout << "STAT=" << hex << (int)STAT
+     << " bit6=" << ((STAT >> 6) & 1)
+     << " LY=" << dec << (int)LY
+     << " LYC=" << (int)LYC << "\n";
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -145,7 +136,7 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
             LY++;
             if (LY==144) { // last row
                 ppu_mode = V_BLANK;
-                IF = IF | 0x01; // v-blank interrupt
+                mem.IF = mem.IF | 0x01; // v-blank interrupt
             } else {
                 ppu_mode = OAM_SCAN;
             }
@@ -172,11 +163,12 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
     if (LY == LYC) {
         STAT |= 0x04;
         if (STAT & 0x40) {
-            IF |= 0x02; 
+            mem.IF |= 0x02; 
         }
     } else {
         STAT &= ~0x04;
     }
+
 }
 
 uint8_t PPU::tile_pixel_color(uint8_t x, uint8_t low_byte, uint8_t high_byte) {

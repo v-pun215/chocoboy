@@ -177,6 +177,7 @@ void memory::write(uint16_t address, uint8_t content) {
             break;
 
             case 0xFF41:
+            cout << "WRITE STAT = " << hex << (int)content << "\n";
             ppu.STAT = content;
             break;
 
@@ -187,6 +188,14 @@ void memory::write(uint16_t address, uint8_t content) {
             case 0xFF43:
             ppu.SCX = content;
             break;
+
+            case 0xFF46: {
+                uint16_t source = content*0x100;
+                for (int i=0;i<160;i++) {
+                    OAM[i] = read(source+i);
+                }
+                break;
+            }
 
             case 0xFF47:
             ppu.BGP = content;
@@ -204,6 +213,7 @@ void memory::write(uint16_t address, uint8_t content) {
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
         HRAM[address-0xFF80] = content;
     } else if (address==0xFFFF) {
+        cout << "WRITE IE = " << hex << (int)content << "\n";
         IE = content;
     } else {
         cout << "ERROR: UNIMPL ADDR CALLED - " << address << '\n';
