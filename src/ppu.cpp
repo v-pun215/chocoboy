@@ -3,7 +3,9 @@
 #include "ppu.h"
 #include "cpu.h"
 #include "memory.h"
+#include <fstream>
 #include <vector>
+#include "globals.h"
 using namespace std;
 
 void PPU::initSDL() {
@@ -14,6 +16,7 @@ void PPU::initSDL() {
     SDL_SetWindowResizable(window, SDL_FALSE);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
 }
+
 
 void PPU::cycleSDL(memory& mem) {
     SDL_Event event;
@@ -103,15 +106,16 @@ void PPU::cycleSDL(memory& mem) {
     }
 }
 
+void PPU::check_lyc(memory& mem) {
+
+}
+
 void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
+
     /*bool LCD_enable = (LCDC >> 7)&1;
     if (!LCD_enable) { // lcd off
         return;
     }*/
-    cout << "STAT=" << hex << (int)STAT
-     << " bit6=" << ((STAT >> 6) & 1)
-     << " LY=" << dec << (int)LY
-     << " LYC=" << (int)LYC << "\n";
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -134,7 +138,8 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
         if (cycles_in_mode >= 204) {
             cycles_in_mode-=204;
             LY++;
-            if (LY==144) { // last row
+            check_lyc(mem);
+            if (LY==144) {
                 ppu_mode = V_BLANK;
                 mem.IF = mem.IF | 0x01; // v-blank interrupt
             } else {
@@ -147,6 +152,7 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
         if (cycles_in_mode>=456) {
             cycles_in_mode-=456;
             LY++;
+            check_lyc(mem);
             if (LY>153) {
                 LY=0;
                 window_y=0;
@@ -158,16 +164,36 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
         }
         break;
     }
-
+    /*
     STAT = (STAT & 0xFC) | ppu_mode;
     if (LY == LYC) {
         STAT |= 0x04;
         if (STAT & 0x40) {
-            mem.IF |= 0x02; 
+            mem.IF |= 0x02;
         }
     } else {
         STAT &= ~0x04;
+    }*/
+   STAT = (STAT & 0xFC) | ppu_mode;
+
+    if (LY == LYC) {
+        STAT |= 0x04;
+    } else {
+        STAT &= ~0x04;
     }
+
+    // Check all possible STAT interrupt sources (LYC matching + Modes)
+    bool current_stat_line = false;
+    if ((STAT & 0x40) && (LY == LYC)) current_stat_line = true;
+    if ((STAT & 0x08) && (ppu_mode == H_BLANK)) current_stat_line = true;
+    if ((STAT & 0x10) && (ppu_mode == V_BLANK)) current_stat_line = true;
+    if ((STAT & 0x20) && (ppu_mode == OAM_SCAN)) current_stat_line = true;
+
+    // Only request an interrupt on a low-to-high transition (rising edge)
+    if (current_stat_line && !stat_line) {
+        mem.IF |= 0x02; 
+    }
+    stat_line = current_stat_line; // Update the history state
 
 }
 
@@ -206,8 +232,6 @@ vector<PPU::sprite> PPU::get_visible_sprites(array<uint8_t, 160>& OAM, uint8_t L
 }
 
 void PPU::render_scanline(memory& mem) {
-
-
     vector<sprite> visible_sprites = get_visible_sprites(mem.OAM, LY);
     bool window_drawn_this_scanline = false;
     for (uint8_t x=0; x<160;x++) {
@@ -279,11 +303,15 @@ void PPU::render_scanline(memory& mem) {
 
             }
         }
+        if (!bg_enable) {
+            color_index = 0;
+            shade = 0;
+            final_color_index=color_index;
+        }
 
         // oam
         
-        for (auto it = visible_sprites.rbegin(); it != visible_sprites.rend(); ++it) {
-            sprite sprt = *it;
+        for (const sprite& sprt : visible_sprites) {
             int real_sprt_x = (int)sprt.x-8;
             int real_sprt_y = (int)sprt.y-16;
             if (x >= real_sprt_x && x < real_sprt_x + 8) {
@@ -309,17 +337,20 @@ void PPU::render_scanline(memory& mem) {
                 uint16_t sprt_row_address = sprt_tile_address + (sprt_row%8)*2;
 
                 uint8_t color_index_sprt = tile_pixel_color(sprt_col, mem.read(sprt_row_address), mem.read(sprt_row_address+1));
-                bool behind_bg = (sprt.attr_flags >> 7)&1;
-                if (color_index_sprt!=0) {
-                    bool should_draw = !behind_bg || (final_color_index == 0);
-                    if (should_draw) {
+                
+                if (color_index_sprt != 0) {
+                    bool behind_bg = (sprt.attr_flags >> 7) & 1;
+                    if (!behind_bg || (final_color_index == 0)) {
                         bool palette = (sprt.attr_flags >> 4) & 1;
                         if (palette) {
                             shade = get_palette_shade(OBP1, color_index_sprt);
                         } else {
                             shade = get_palette_shade(OBP0, color_index_sprt);
                         }
+                    } else {
+                        //pass
                     }
+                    break; 
                 }
             }
         }

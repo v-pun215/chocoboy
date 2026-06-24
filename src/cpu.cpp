@@ -11,7 +11,22 @@ using namespace std;
 
     
 
+
+void dump_vram(memory& mem, const string& file) {
+    ofstream out_file(file, std::ios::binary);
+    for (uint16_t addr = 0x8000; addr <= 0x9FFF; ++addr) {
+        uint8_t byte = mem.read(addr); 
+        out_file.put(byte);
+    }
+
+    out_file.close();
+    std::cout << "Successfully dumped VRAM to " << file << "\n";
+}
 uint8_t cpu::fetch(memory& mem) {
+    if (PC == 0x0100 && !boot_rom_finished) {
+        boot_rom_finished = true; 
+        std::cout << "[DEBUG] Boot ROM finished. Cartridge executing.\n";
+    }
     auto value = mem.read(PC);
     PC+=1;
     return value;
@@ -41,6 +56,7 @@ uint8_t cpu::F() {
 }
 
 uint8_t cpu::decode(uint8_t opcode, memory& mem) { //returns no of cycles took
+
     if (debug){cout << "EXECUTE OPCODE: " << hex << (int)opcode<< '\n';}
     uint8_t cycles = 0;
     switch (opcode) {
@@ -816,17 +832,13 @@ uint8_t cpu::decode(uint8_t opcode, memory& mem) { //returns no of cycles took
             SP += 2;
             PC = (high << 8) | low;
             if (debug) {
-            cout << "RET. SP: " << hex << SP 
-                << " low: " << (int)low 
-                << " high: " << (int)high 
-                << " jumping to: " << PC << '\n';
             }cycles = 16;
             break;
         }
 
         case 0xFB: {
             // EI
-            cout << "EI executed, pending was " << (int)IME_pending << "\n";
+            //cout << "EI executed, pending was " << (int)IME_pending << "\n";
             IME_pending = 2;
             cycles=4;
             break;
@@ -1514,7 +1526,7 @@ void cpu::handle_interrupts(memory& mem) {
         }
     }
     if (mem.ppu.LY == 0) {
-        cout << "IME=" << IME << " IE=" << hex << (int)mem.IE << " IF=" << (int)mem.IF << "\n";
+        //cout << "IME=" << IME << " IE=" << hex << (int)mem.IE << " IF=" << (int)mem.IF << "\n";
     }
     if (IME && !just_enabled) {
 
@@ -1534,7 +1546,7 @@ void cpu::handle_interrupts(memory& mem) {
                 mem.write(SP, PC >> 8);
                 SP--;
                 mem.write(SP, PC & 0xFF);
-                cout << "LCD STAT interrupt dispatched! LY=" << (int)mem.ppu.LY << " LYC=" << (int)mem.ppu.LYC << "\n";
+                //cout << "LCD STAT interrupt dispatched! LY=" << (int)mem.ppu.LY << " LYC=" << (int)mem.ppu.LYC << "\n";
                 PC = 0x48;
                 mem.IF = mem.IF & ~2;
             }

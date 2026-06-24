@@ -101,6 +101,7 @@ uint8_t memory::read(uint16_t address) {
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
         return HRAM[address-0xFF80];
     } else if (address==0xFFFF) {
+        cout << "IE READ: curn vlaue: " << IE << '\n';
         return IE;
     } else {
         cout << "ERROR: UNIMPL ADDR CALLED - " << address << '\n';
@@ -174,11 +175,13 @@ void memory::write(uint16_t address, uint8_t content) {
 
             case 0xFF45:
             ppu.LYC = content;
+            ppu.check_lyc(*this);
             break;
 
             case 0xFF41:
-            cout << "WRITE STAT = " << hex << (int)content << "\n";
-            ppu.STAT = content;
+            //cout << "WRITE STAT = " << hex << (int)content << "\n";
+            ppu.STAT = (ppu.STAT & 0x07) | (content & 0x78);
+            ppu.check_lyc(*this);
             break;
 
             case 0xFF42:
@@ -213,8 +216,10 @@ void memory::write(uint16_t address, uint8_t content) {
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
         HRAM[address-0xFF80] = content;
     } else if (address==0xFFFF) {
-        cout << "WRITE IE = " << hex << (int)content << "\n";
+        cout << hex << "WRITE IE = " << (int)content << '\n';
+        dump_vram(*this, "my_acid2_vram.bin");
         IE = content;
+        return;
     } else {
         cout << "ERROR: UNIMPL ADDR CALLED - " << address << '\n';
     }

@@ -17,6 +17,7 @@ struct PPU {
 
 
     uint8_t LCDC = 0; // LCD control
+    uint8_t frame_cntr = 0;
     uint8_t LY = 0;
     uint8_t LYC = 0;
     uint8_t STAT = 0;
@@ -27,6 +28,7 @@ struct PPU {
     uint8_t OBP1 = 0;
     uint8_t WY = 0;
     uint8_t WX = 0;
+    bool stat_line = false;
 
     uint8_t window_y = 0;
 
@@ -45,7 +47,7 @@ struct PPU {
 
     unsigned char framebuffer[160 * 144 *3]; // RGB24
     unsigned char framebufferA[160 * 144 * 3]; // RGBA24 needed to draw multiple framebuffers on top of each other
-
+    void check_lyc(memory& mem);
     void update(uint8_t cycle, uint8_t& IF, memory& mem);
     uint8_t tile_pixel_color(uint8_t x, uint8_t low, uint8_t high);
     uint8_t get_palette_shade(uint8_t palette, uint8_t index) ;

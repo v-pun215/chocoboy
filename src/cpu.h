@@ -7,6 +7,8 @@
 #include <iomanip>
 #include "memory.h"
 using namespace std;
+
+void dump_vram(memory& mem, const string& file);
 struct cpu { // 8-bit custom Sharp LR35902 processor
     enum registernams { 
         B, //0
