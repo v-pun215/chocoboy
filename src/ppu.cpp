@@ -105,12 +105,28 @@ void PPU::cycleSDL(memory& mem) {
         }
     }
 }
+void PPU::set_mode(uint8_t mode, uint8_t& IF) {
+    STAT = (STAT & 0xFC) | (mode & 0x03);
+    ppu_mode = mode;
 
-void PPU::check_lyc(memory& mem) {
-
+    if (mode == H_BLANK && (STAT & 0x08)) IF |= 0x02;
+    if (mode == V_BLANK && (STAT & 0x10)) IF |= 0x02;
+    if (mode == OAM_SCAN && (STAT & 0x20)) IF |= 0x02;
 }
 
-void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
+
+void PPU::check_lyc(memory& mem) {
+    if (LY == LYC) {
+        STAT |= 0x04;
+        if (STAT & 0x40) {
+            mem.IF |= 0x02;
+        }
+    } else {
+        STAT &= ~0x04;
+    }
+}
+
+void PPU::update(uint8_t cycles, memory& mem) {
 
     /*bool LCD_enable = (LCDC >> 7)&1;
     if (!LCD_enable) { // lcd off
@@ -122,14 +138,14 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
         case OAM_SCAN:
         if (cycles_in_mode>=80) {
             cycles_in_mode-=80;
-            ppu_mode=DRAWING_PIXELS;
+            set_mode(DRAWING_PIXELS, mem.IF);
         }
         break;
 
         case DRAWING_PIXELS:
         if (cycles_in_mode >= 172) {
             cycles_in_mode-=172;
-            ppu_mode = H_BLANK;
+            set_mode(H_BLANK, mem.IF);
             render_scanline(mem);
         }
         break;
@@ -140,10 +156,10 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
             LY++;
             check_lyc(mem);
             if (LY==144) {
-                ppu_mode = V_BLANK;
+                set_mode(V_BLANK, mem.IF);
                 mem.IF = mem.IF | 0x01; // v-blank interrupt
             } else {
-                ppu_mode = OAM_SCAN;
+                set_mode(OAM_SCAN, mem.IF);
             }
         }
         break;
@@ -156,44 +172,17 @@ void PPU::update(uint8_t cycles, uint8_t& IF, memory& mem) {
             if (LY>153) {
                 LY=0;
                 window_y=0;
+                check_lyc(mem);
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
                 SDL_RenderPresent(renderer);
-                ppu_mode = OAM_SCAN;
+                set_mode(OAM_SCAN, mem.IF);
             }
         }
         break;
     }
-    /*
-    STAT = (STAT & 0xFC) | ppu_mode;
-    if (LY == LYC) {
-        STAT |= 0x04;
-        if (STAT & 0x40) {
-            mem.IF |= 0x02;
-        }
-    } else {
-        STAT &= ~0x04;
-    }*/
-   STAT = (STAT & 0xFC) | ppu_mode;
+    
 
-    if (LY == LYC) {
-        STAT |= 0x04;
-    } else {
-        STAT &= ~0x04;
-    }
-
-    // Check all possible STAT interrupt sources (LYC matching + Modes)
-    bool current_stat_line = false;
-    if ((STAT & 0x40) && (LY == LYC)) current_stat_line = true;
-    if ((STAT & 0x08) && (ppu_mode == H_BLANK)) current_stat_line = true;
-    if ((STAT & 0x10) && (ppu_mode == V_BLANK)) current_stat_line = true;
-    if ((STAT & 0x20) && (ppu_mode == OAM_SCAN)) current_stat_line = true;
-
-    // Only request an interrupt on a low-to-high transition (rising edge)
-    if (current_stat_line && !stat_line) {
-        mem.IF |= 0x02; 
-    }
-    stat_line = current_stat_line; // Update the history state
 
 }
 
@@ -270,7 +259,7 @@ void PPU::render_scanline(memory& mem) {
             shade = 0;
         }
 
-
+        
         // window
         bool window_enable = (LCDC >> 5) & 1;
         if (window_enable) {

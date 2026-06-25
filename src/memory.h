@@ -17,7 +17,11 @@ struct memory {
     array<uint8_t, 2097152> ROM = {}; // 2MiB combined ROM
     array<uint8_t, 256> boot_ROM={};
     bool boot_enabled = true;
+    // mbc
     uint8_t rom_bank = 1;
+    uint8_t ram_bank = 0;
+    bool ram_enabled = false;
+    bool mbc1_mode = false;
     array<uint8_t, 8192> VRAM = {}; // 8KB VRAM
     array<uint8_t, 8192> ERAM = {}; // 8KB External RAM (local game storage?)
 

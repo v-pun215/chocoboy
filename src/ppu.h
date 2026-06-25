@@ -47,8 +47,9 @@ struct PPU {
 
     unsigned char framebuffer[160 * 144 *3]; // RGB24
     unsigned char framebufferA[160 * 144 * 3]; // RGBA24 needed to draw multiple framebuffers on top of each other
+    void set_mode(uint8_t mode, uint8_t& IF);
     void check_lyc(memory& mem);
-    void update(uint8_t cycle, uint8_t& IF, memory& mem);
+    void update(uint8_t cycle, memory& mem);
     uint8_t tile_pixel_color(uint8_t x, uint8_t low, uint8_t high);
     uint8_t get_palette_shade(uint8_t palette, uint8_t index) ;
 

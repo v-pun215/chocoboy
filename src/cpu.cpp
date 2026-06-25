@@ -10,7 +10,11 @@
 using namespace std;
 
     
-
+uint8_t cpu::step(memory& mem) {
+    uint8_t opcode = fetch(mem);
+    uint8_t cycles = decode(opcode, mem);
+    return cycles;
+}
 
 void dump_vram(memory& mem, const string& file) {
     ofstream out_file(file, std::ios::binary);
@@ -1501,7 +1505,7 @@ uint8_t cpu::decode(uint8_t opcode, memory& mem) { //returns no of cycles took
 
         case 0x10: {
             //STOP
-            auto n8 = fetch(mem);
+            cycles=4;
             halted=true;//essentially turn off cpu (for now)
         }
 

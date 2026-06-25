@@ -11,16 +11,26 @@ using namespace std;
 
 
 uint8_t memory::read_ROM(uint16_t address) {
+    uint8_t romtype = ROM[0x0147];
     if (address >= 0x0000 && address <= 0x3FFF) {
-        return ROM[address];
-    } else if (address >= 0x4000 && address <= 0x7FFF ) {
-        return ROM[(rom_bank * 0x4000) + (address - 0x4000)];
+            return ROM[address];
+    }
+    else if (address >= 0x4000 && address <= 0x7FFF ) {
+        switch (romtype) {
+        case 0x00: {
+            // MBC0
+            return ROM[address];
+        }
+        case 0x01 ... 0x06: { // mbc1 and mbc 2
+            return ROM[(rom_bank * 0x4000) + (address - 0x4000)]; 
+        }
+        }
     }
     return ROM[address];
 }
 
 uint8_t memory::read(uint16_t address) {
-    if (debug){cout << "READ ADDRESS: " << hex<<address << '\n';}
+
     if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
         if (boot_enabled && address >=0x0000 && address <= 0x00FF) {
             return boot_ROM[address];
@@ -29,7 +39,18 @@ uint8_t memory::read(uint16_t address) {
     } else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
         return VRAM[address-0x8000];
     } else if (address >= 0xA000 && address <= 0xBFFF) { // ERAM
-        return ERAM[address-0xA000];
+        uint8_t romtype = ROM[0x0147];
+
+        
+        if (ram_enabled) {
+            if (romtype == 0x05 || romtype == 0x06) {
+                uint16_t  mbc2_address = (address - 0xA000) & 0x01FF;
+                return ERAM[mbc2_address] | 0xF0;
+            } else {
+                return ERAM[(ram_bank * 0x2000) + (address - 0xA000)];
+            }
+        }
+        return 0xFF;
     } else if (address >= 0xC000 && address <= 0xDFFF) { // WRAM
         return WRAM[address-0xC000];
     } else if (address >= 0xE000 && address <= 0xFDFF) { // echo ram
@@ -109,18 +130,57 @@ uint8_t memory::read(uint16_t address) {
     }
 }
 void memory::write(uint16_t address, uint8_t content) {
+    uint8_t romtype = ROM[0x0147];
+
     if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
-        if (address >= 0x2000 && address <= 0x3FFF) { // MBC1
-            auto shtuff = content & 0x1F; // lower 5 bits
-            if (shtuff == 0) {
-                shtuff = 1;
+        if (romtype == 0x00) {
+            // MBC0
+            // read only
+            return;
+        } else  if (romtype == 0x01 || romtype == 0x02 | romtype == 0x03){
+            // MBC1
+            if (address >= 0x0000 && address <= 0x1FFF) {
+                ram_enabled = (content & 0x0F) == 0x0A;
+            } else if (address >= 0x2000 && address <= 0x3FFF) { 
+                auto shtuff = content & 0x1F; // lower 5 bits
+                if (shtuff == 0) {
+                    shtuff = 1;
+                }
+                rom_bank = (rom_bank & 0x60) | shtuff;
+            } else if (address >=0x4000 && address <=0x5FFF) {
+                if (!mbc1_mode) {
+                    // rom banking mode
+                    rom_bank = (rom_bank & 0x1F) | ((content & 0x03) << 5);
+                } else {
+                    // ram banking mode
+                    ram_bank = content & 0x03;
+                }
+            } else if (address >=0x6000 && address <=0x7FFF) {
+                mbc1_mode = content & 0x01;
             }
-            rom_bank = shtuff;
+        } else if (romtype == 0x05 || romtype == 0x06) {
+            // MBC 2
+            if (address >=0x0000 && address <= 0x3FFF) {
+                if (address & 0x0100 ==0) {
+                    ram_enabled = (content & 0x0F) == 0x0A;
+                } else {
+                    rom_bank = content & 0x0F;
+                    if (rom_bank == 0) {
+                        rom_bank = 1;
+                    }
+                }
+            } else if (address >= 0x4000 && address <= 0x7FFF) {
+                // read only
+            }
         }
-    } else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
+    } 
+    
+
+    
+    else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
         VRAM[address-0x8000] = content;
     } else if (address >= 0xA000 && address <= 0xBFFF) { // ERAM
-        ERAM[address-0xA000] = content;
+        ERAM[(ram_bank * 0x2000) + (address - 0xA000)] = content;
     } else if (address >= 0xC000 && address <= 0xDFFF) { // WRAM
         WRAM[address-0xC000] = content;
     } else if (address >= 0xE000 && address <= 0xFDFF) { // echo ram
@@ -216,8 +276,8 @@ void memory::write(uint16_t address, uint8_t content) {
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
         HRAM[address-0xFF80] = content;
     } else if (address==0xFFFF) {
-        cout << hex << "WRITE IE = " << (int)content << '\n';
-        dump_vram(*this, "my_acid2_vram.bin");
+        //cout << hex << "WRITE IE = " << (int)content << '\n';
+        //dump_vram(*this, "my_acid2_vram.bin");
         IE = content;
         return;
     } else {

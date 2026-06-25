@@ -79,18 +79,21 @@ int main(int argc, char* argv[]) {
 
     while (true) {
         mem.ppu.cycleSDL(mem);
+        uint8_t cycles = 0;
         //cout << "LY: " << (int)mem.ppu.LY << '\n';
         if (!gb_cpu.halted) { 
             if (doctor) {doctor_print(gb_cpu, mem);}
-            uint8_t cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
-            mem.tmr.handle_timer(cycles, mem.IF);
-            mem.ppu.update(cycles, mem.IF, mem);
+            cycles = gb_cpu.decode(gb_cpu.fetch(mem), mem);
+
         } else {
-            mem.tmr.handle_timer(4, mem.IF);
+            cycles=4;
+            
             if ((mem.IE & mem.IF) !=0) {
                 gb_cpu.halted=false;
             }
         }
+        mem.tmr.handle_timer(cycles, mem.IF);
+        mem.ppu.update(cycles, mem);
         gb_cpu.handle_interrupts(mem);
     }
 }
