@@ -6,12 +6,14 @@
 #include <fstream>
 #include <vector>
 #include "globals.h"
+#include <algorithm>
 using namespace std;
 
 void PPU::initSDL() {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
     SDL_CreateWindowAndRenderer(160, 144, 0, &window, &renderer);
+    SDL_SetWindowTitle(window, "Chocoboy");
     SDL_SetWindowSize(window, 480, 432);
     SDL_SetWindowResizable(window, SDL_FALSE);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
@@ -215,6 +217,8 @@ vector<PPU::sprite> PPU::get_visible_sprites(array<uint8_t, 160>& OAM, uint8_t L
         if (LY >= real_y && LY < (height + real_y)) {
             visible.push_back({byte0, byte1, byte2, byte3});
         }
+    stable_sort(visible.begin(), visible.end(), 
+        [](const sprite& a, const sprite& b) { return a.x < b.x; });
         
     } 
     return visible;
@@ -245,7 +249,7 @@ void PPU::render_scanline(memory& mem) {
         if (tile_data_area) {
             address = 0x8000 + tile_index*16;
         } else {
-            address = 0x9000 + (int8_t)tile_index *16;
+            address = 0x9000 + (signed int8_t)tile_index *16;
         }
 
         uint16_t row_address = address + tile_pixel_y*2;
@@ -257,6 +261,7 @@ void PPU::render_scanline(memory& mem) {
         if (!bg_enable) {
             color_index = 0;
             shade = 0;
+            final_color_index=0;
         }
 
         
@@ -299,47 +304,52 @@ void PPU::render_scanline(memory& mem) {
         }
 
         // oam
-        
-        for (const sprite& sprt : visible_sprites) {
-            int real_sprt_x = (int)sprt.x-8;
-            int real_sprt_y = (int)sprt.y-16;
-            if (x >= real_sprt_x && x < real_sprt_x + 8) {
-                uint8_t sprt_col = x - real_sprt_x;
-                bool x_flip = (sprt.attr_flags >> 5) & 1;
-                if (x_flip) {
-                    sprt_col = 7-sprt_col;
-                }
-                int sprite_height = (LCDC & 0x04) ? 16 : 8;
-                uint8_t sprt_row = LY - real_sprt_y;
-                bool y_flip = (sprt.attr_flags >> 6) & 1;
-                if (y_flip) {
-                    sprt_row = (sprite_height-1) -sprt_row;
-                }
-                uint8_t sprt_tile_index = sprt.tile_index;
-                if (sprite_height == 16) {
-                    sprt_tile_index &= 0xFE;
-                    if (sprt_row >= 8) {
-                        sprt_tile_index |= 0x01; // Fetch the bottom tile
+        /*
+        for (auto it = visible_sprites.rbegin(); it != visible_sprites.rend(); ++it) {
+            const sprite& sprt = *it;*/
+        bool obj_enable = (LCDC >> 1)&1;
+        if (obj_enable){
+            for (const sprite& sprt : visible_sprites) {
+                int real_sprt_x = (int)sprt.x-8;
+                int real_sprt_y = (int)sprt.y-16;
+                if (x >= real_sprt_x && x < real_sprt_x + 8) {
+                    uint8_t sprt_col = x - real_sprt_x;
+                    bool x_flip = (sprt.attr_flags >> 5) & 1;
+                    if (x_flip) {
+                        sprt_col = 7-sprt_col;
                     }
-                }
-                uint16_t sprt_tile_address = 0x8000 + sprt_tile_index*16;
-                uint16_t sprt_row_address = sprt_tile_address + (sprt_row%8)*2;
-
-                uint8_t color_index_sprt = tile_pixel_color(sprt_col, mem.read(sprt_row_address), mem.read(sprt_row_address+1));
-                
-                if (color_index_sprt != 0) {
-                    bool behind_bg = (sprt.attr_flags >> 7) & 1;
-                    if (!behind_bg || (final_color_index == 0)) {
-                        bool palette = (sprt.attr_flags >> 4) & 1;
-                        if (palette) {
-                            shade = get_palette_shade(OBP1, color_index_sprt);
-                        } else {
-                            shade = get_palette_shade(OBP0, color_index_sprt);
+                    int sprite_height = (LCDC & 0x04) ? 16 : 8;
+                    uint8_t sprt_row = LY - real_sprt_y;
+                    bool y_flip = (sprt.attr_flags >> 6) & 1;
+                    if (y_flip) {
+                        sprt_row = (sprite_height-1) -sprt_row;
+                    }
+                    uint8_t sprt_tile_index = sprt.tile_index;
+                    if (sprite_height == 16) {
+                        sprt_tile_index &= 0xFE;
+                        if (sprt_row >= 8) {
+                            sprt_tile_index |= 0x01; // Fetch the bottom tile
                         }
-                    } else {
-                        //pass
                     }
-                    break; 
+                    uint16_t sprt_tile_address = 0x8000 + sprt_tile_index*16;
+                    uint16_t sprt_row_address = sprt_tile_address + (sprt_row%8)*2;
+
+                    uint8_t color_index_sprt = tile_pixel_color(sprt_col, mem.read(sprt_row_address), mem.read(sprt_row_address+1));
+                    
+                    if (color_index_sprt != 0) {
+                        bool behind_bg = (sprt.attr_flags >> 7) & 1;
+                        if (!behind_bg || (final_color_index == 0)) {
+                            bool palette = (sprt.attr_flags >> 4) & 1;
+                            if (palette) {
+                                shade = get_palette_shade(OBP1, color_index_sprt);
+                            } else {
+                                shade = get_palette_shade(OBP0, color_index_sprt);
+                            }
+                        } else {
+                            //pass
+                        }
+                        break; 
+                    }
                 }
             }
         }

@@ -1537,6 +1537,8 @@ void cpu::handle_interrupts(memory& mem) {
         if (mem.IE & mem.IF) {
             // v-blank interrupt
             if ((mem.IE &1) & (mem.IF & 1)) {
+                halted = false;
+                IME=false;
                 SP--;
                 mem.write(SP, PC >> 8);
                 SP--;
@@ -1546,6 +1548,8 @@ void cpu::handle_interrupts(memory& mem) {
             } 
             // LCD 
             else if ((mem.IE &2) & (mem.IF & 2)) {
+                halted = false;
+                IME=false;
                 SP--;
                 mem.write(SP, PC >> 8);
                 SP--;
@@ -1556,6 +1560,8 @@ void cpu::handle_interrupts(memory& mem) {
             }
             // timer
             else if ((mem.IE &4) & (mem.IF & 4)) {
+                halted=false;
+                IME=false;
                 SP--;
                 mem.write(SP, PC >> 8);
                 SP--;
@@ -1565,6 +1571,8 @@ void cpu::handle_interrupts(memory& mem) {
             }
             // serial
             else if ((mem.IE & 8) & (mem.IF & 8)) {
+                halted=false;
+                IME=false;
                 SP--;
                 mem.write(SP, PC >> 8);
                 SP--;
@@ -1574,6 +1582,8 @@ void cpu::handle_interrupts(memory& mem) {
             }
             // joypad
             else if ((mem.IE & 16) & (mem.IF & 16)) {
+                halted=false;
+                IME=false;
                 SP--;
                 mem.write(SP, PC >> 8);
                 SP--;

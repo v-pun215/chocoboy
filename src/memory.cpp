@@ -122,7 +122,7 @@ uint8_t memory::read(uint16_t address) {
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
         return HRAM[address-0xFF80];
     } else if (address==0xFFFF) {
-        cout << "IE READ: curn vlaue: " << IE << '\n';
+        //cout << "IE READ: curn vlaue: " << IE << '\n';
         return IE;
     } else {
         cout << "ERROR: UNIMPL ADDR CALLED - " << address << '\n';
@@ -193,6 +193,7 @@ void memory::write(uint16_t address, uint8_t content) {
         
         if (address == 0xFF00) {
             // joypad input 
+            //cout << "JOYP write = " << hex << (int)content << '\n';
             joy.write_selected(content);
         } else if (address >= 0xFF01 && address <=0xFF02) {
             //serial transfer
