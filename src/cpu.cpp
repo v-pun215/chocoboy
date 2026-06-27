@@ -28,8 +28,7 @@ void dump_vram(memory& mem, const string& file) {
 }
 uint8_t cpu::fetch(memory& mem) {
     if (PC == 0x0100 && !boot_rom_finished) {
-        boot_rom_finished = true; 
-        std::cout << "[DEBUG] Boot ROM finished. Cartridge executing.\n";
+        boot_rom_finished = true;
     }
     auto value = mem.read(PC);
     PC+=1;

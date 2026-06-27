@@ -304,9 +304,6 @@ void PPU::render_scanline(memory& mem) {
         }
 
         // oam
-        /*
-        for (auto it = visible_sprites.rbegin(); it != visible_sprites.rend(); ++it) {
-            const sprite& sprt = *it;*/
         bool obj_enable = (LCDC >> 1)&1;
         if (obj_enable){
             for (const sprite& sprt : visible_sprites) {
