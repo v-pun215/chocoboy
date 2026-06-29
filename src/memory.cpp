@@ -161,7 +161,7 @@ void memory::write(uint16_t address, uint8_t content) {
         } else if (romtype == 0x05 || romtype == 0x06) {
             // MBC 2
             if (address >=0x0000 && address <= 0x3FFF) {
-                if (address & 0x0100 ==0) {
+                if ((address & 0x0100) ==0) {
                     ram_enabled = (content & 0x0F) == 0x0A;
                 } else {
                     rom_bank = content & 0x0F;

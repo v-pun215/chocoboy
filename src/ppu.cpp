@@ -17,6 +17,7 @@ void PPU::initSDL() {
     SDL_SetWindowSize(window, 480, 432);
     SDL_SetWindowResizable(window, SDL_FALSE);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
+    SDL_StopTextInput();
 }
 
 
@@ -129,11 +130,10 @@ void PPU::check_lyc(memory& mem) {
 }
 
 void PPU::update(uint8_t cycles, memory& mem) {
-
-    /*bool LCD_enable = (LCDC >> 7)&1;
+    bool LCD_enable = (LCDC >> 7)&1;
     if (!LCD_enable) { // lcd off
         return;
-    }*/
+    }
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -178,6 +178,7 @@ void PPU::update(uint8_t cycles, memory& mem) {
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
                 SDL_RenderPresent(renderer);
+                cycleSDL(mem);
                 set_mode(OAM_SCAN, mem.IF);
             }
         }
@@ -197,7 +198,7 @@ uint8_t PPU::tile_pixel_color(uint8_t x, uint8_t low_byte, uint8_t high_byte) {
 }
 
 uint8_t PPU::get_palette_shade(uint8_t palette, uint8_t index) {
-    uint8_t high_bit = (palette >> 2*index+1) & 1;
+    uint8_t high_bit = (palette >> (2*index+1)) & 1;
     uint8_t low_bit = (palette >> 2*index) & 1;
     uint8_t shade = (high_bit << 1) | low_bit;
     return shade;
@@ -249,7 +250,7 @@ void PPU::render_scanline(memory& mem) {
         if (tile_data_area) {
             address = 0x8000 + tile_index*16;
         } else {
-            address = 0x9000 + (signed int8_t)tile_index *16;
+            address = 0x9000 + (int8_t)tile_index *16;
         }
 
         uint16_t row_address = address + tile_pixel_y*2;

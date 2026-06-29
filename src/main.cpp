@@ -6,6 +6,7 @@
 #include <iomanip>
 #include "globals.h"
 #include "timer.h"
+#include <chrono>
 #include "memory.h"
 #include "cpu.h"
 #include "ppu.h"
@@ -76,9 +77,11 @@ int main(int argc, char* argv[]) {
     mem.ppu.initSDL();
     //PPU ppu;
     //ppu.initSDL();
+    int all_cycles=0;
 
+    auto t_start = std::chrono::high_resolution_clock::now();
     while (true) {
-        mem.ppu.cycleSDL(mem);
+        
         uint8_t cycles = 0;
         //cout << "LY: " << (int)mem.ppu.LY << '\n';
         if (!gb_cpu.halted) { 
@@ -92,8 +95,16 @@ int main(int argc, char* argv[]) {
                 gb_cpu.halted=false;
             }
         }
+        all_cycles+=cycles; 
         mem.tmr.handle_timer(cycles, mem.IF);
         mem.ppu.update(cycles, mem);
         gb_cpu.handle_interrupts(mem);
+        if (all_cycles >= 70244) {
+            all_cycles=0;
+            while ((chrono::high_resolution_clock::now() - t_start) < 16.67ms) {
+                // do nothing
+            }
+            t_start = std::chrono::high_resolution_clock::now();
+        }
     }
 }
