@@ -7,6 +7,10 @@
 #include <vector>
 #include "globals.h"
 #include <algorithm>
+#include <imgui.h>
+#include <imgui_impl_sdl2.h>
+#include <imgui_impl_sdlrenderer2.h>
+
 using namespace std;
 
 void PPU::initSDL() {
@@ -18,6 +22,18 @@ void PPU::initSDL() {
     SDL_SetWindowResizable(window, SDL_FALSE);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
     SDL_StopTextInput();
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    ImGui_ImplSDL2_InitForSDLRenderer(
+        window,
+        renderer
+    );
+    ImGui_ImplSDLRenderer2_Init(renderer);
+    
+
 }
 
 
@@ -106,6 +122,7 @@ void PPU::cycleSDL(memory& mem) {
                 break;
             }
         }
+        ImGui_ImplSDL2_ProcessEvent(&event);
     }
 }
 void PPU::set_mode(uint8_t mode, uint8_t& IF) {
@@ -130,10 +147,10 @@ void PPU::check_lyc(memory& mem) {
 }
 
 void PPU::update(uint8_t cycles, memory& mem) {
-    bool LCD_enable = (LCDC >> 7)&1;
+    /*bool LCD_enable = (LCDC >> 7)&1;
     if (!LCD_enable) { // lcd off
         return;
-    }
+    }*/
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -175,8 +192,24 @@ void PPU::update(uint8_t cycles, memory& mem) {
                 LY=0;
                 window_y=0;
                 check_lyc(mem);
+
+                // debugger overlay
+                ImGui_ImplSDLRenderer2_NewFrame();
+                ImGui_ImplSDL2_NewFrame();
+                ImGui::NewFrame();
+
+                ImGui::Begin("test");
+
+                ImGui::Text("hey there!");
+                ImGui::End();
+
+                ImGui::Render();
+
+
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+                ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
                 SDL_RenderPresent(renderer);
                 cycleSDL(mem);
                 set_mode(OAM_SCAN, mem.IF);

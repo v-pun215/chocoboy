@@ -10,6 +10,9 @@
 #include "memory.h"
 #include "cpu.h"
 #include "ppu.h"
+#include <imgui.h>
+#include <imgui_impl_sdl2.h>
+#include <imgui_impl_sdlrenderer2.h>
 using namespace std;
 
 
@@ -99,6 +102,10 @@ int main(int argc, char* argv[]) {
         mem.tmr.handle_timer(cycles, mem.IF);
         mem.ppu.update(cycles, mem);
         gb_cpu.handle_interrupts(mem);
+
+
+
+
         if (all_cycles >= 70244) {
             all_cycles=0;
             while ((chrono::high_resolution_clock::now() - t_start) < 16.67ms) {
