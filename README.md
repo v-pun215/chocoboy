@@ -1,13 +1,13 @@
 # Chocoboy
-A Game Boy (DMG) emulator written in C++.
+A Game Boy (DMG) emulator written in C++ (WIP)
 
 ## Screenshots
-![Legend of Zelda, Link's Awakening](https://media.discordapp.net/attachments/1484875525288759376/1520538629943070922/image.png?ex=6a418f73&is=6a403df3&hm=c5d696a043ef55917c02351036fb020cdcca0c25f08169345cc81f63de52af69&=&format=webp&quality=lossless&width=1468&height=1322)
+<img src="https://user-cdn.hackclub-assets.com/019f2400-d86a-7b08-8b4c-46dfee348e63/image.png" alt="The Legend of Zelda: Link's Awakening" width="400" />
+<img src="https://cdn.hackclub.com/019f2400-db4b-76c8-b9e8-b18ad09fbcf8/image.png" alt="Kirby's Dream Land" width="400" />
+<img src="https://cdn.hackclub.com/019f2400-ddd0-754e-ad2e-f8b6e62ce12e/image.png" alt="Tetris" width="400" />
 
-![Kirby's Dream Land](https://media.discordapp.net/attachments/1484875525288759376/1520539970656276601/image.png?ex=6a4190b3&is=6a403f33&hm=fdb0a57a59db56cbdf666643e95693eeda8002421e4f4d1d8a9beae73aa6a9ed&=&format=webp&quality=lossless&width=1468&height=1322)
 
 
-![Tetris](https://cdn.discordapp.com/attachments/1484875525288759376/1520548972199153704/image.png?ex=6a419915&is=6a404795&hm=4b1831bba15b51b2515336230c700c25659775d287713723af579f895a497b1e&)
 
 ## Notes
 - Passes most of Blargg's test roms
@@ -16,6 +16,7 @@ A Game Boy (DMG) emulator written in C++.
 - Does not support audio yet
 - Joypad works (as far as tested)
 - Does not support saving yet
+- Not every game works, mostly because of MBC.
 
 ## Technicals
 - I used SDL2 to display the framebuffer on screen.
