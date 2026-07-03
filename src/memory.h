@@ -25,8 +25,17 @@ struct memory {
     uint8_t ram_bank = 0;
     bool ram_enabled = false;
     bool mbc1_mode = false;
+
+    // rtc
+    uint8_t rtc_s = 0; // secs
+    uint8_t rtc_h = 0; // mins
+    uint8_t rtc_m = 0; // hrs
+    uint8_t rtc_dl = 0; // lower 8 bits of day counter
+    uint8_t rtc_dh = 0; // upper 1 bit of day counter, carry bit, halt flag
+    uint8_t rtc_latch =0;
+
     array<uint8_t, 8192> VRAM = {}; // 8KB VRAM
-    array<uint8_t, 8192> ERAM = {}; // 8KB External RAM (local game storage?)
+    array<uint8_t, 131072> ERAM = {}; // 128KB External RAM (local game storage?)
 
     array<uint8_t, 8192> WRAM = {}; // 8KB Work RAM (actual runtime meory)
 

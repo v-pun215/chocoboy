@@ -24,6 +24,10 @@ uint8_t memory::read_ROM(uint16_t address) {
         case 0x01 ... 0x06: { // mbc1 and mbc 2
             return ROM[(rom_bank * 0x4000) + (address - 0x4000)]; 
         }
+        case 0x0F ... 0x13: {
+            // mbc 3
+            return ROM[(rom_bank*0x4000) + (address - 0x4000)];
+        }
         }
     }
     return ROM[address];
@@ -46,7 +50,32 @@ uint8_t memory::read(uint16_t address) {
             if (romtype == 0x05 || romtype == 0x06) {
                 uint16_t  mbc2_address = (address - 0xA000) & 0x01FF;
                 return ERAM[mbc2_address] | 0xF0;
-            } else {
+
+            } else if (romtype >=0x0F && romtype <= 0x13) {
+                // mbc3
+                if (ram_bank <=0x03) {
+                    return ERAM[(ram_bank*0x2000) + (address -0xA000)];
+                } else if (ram_bank >=0x08 && ram_bank <=0x0C) {
+                    switch (ram_bank) {
+                        case 0x08:
+                        return rtc_s;
+
+                        case 0x09:
+                        return rtc_m;
+
+                        case 0x0A:
+                        return rtc_h;
+
+                        case 0x0B:
+                        return rtc_dl;
+
+                        case 0x0C:
+                        return rtc_dh;
+                    }
+                }
+            }
+            
+            else {
                 return ERAM[(ram_bank * 0x2000) + (address - 0xA000)];
             }
         }
@@ -172,6 +201,24 @@ void memory::write(uint16_t address, uint8_t content) {
             } else if (address >= 0x4000 && address <= 0x7FFF) {
                 // read only
             }
+        } else if (romtype >=0x0F && romtype <= 0x13) {
+            // mbc3
+            if (address >= 0x0000 && address <= 0x1FFF) {
+                ram_enabled = (content&0x0F) == 0x0A;
+            } else if (address >=0x2000 && address <= 0x3FFF) {
+                rom_bank = content & 0x7F; // direct 7 bits
+                if (rom_bank == 0) {
+                    rom_bank =1;
+                }
+            } else if (address >= 0x4000 && address <=0x5FFF) {
+                ram_bank = content;
+            } else if (address >= 0x6000 && address <= 0x7FFF) {
+                // rtc latch
+                if (rtc_latch == 0x00 && content == 0x01) {
+                    // impl later
+                }
+                rtc_latch = content;
+            }
         }
     } 
     
@@ -180,7 +227,38 @@ void memory::write(uint16_t address, uint8_t content) {
     else if (address >= 0x8000 && address <= 0x9FFF) { // VRAM
         VRAM[address-0x8000] = content;
     } else if (address >= 0xA000 && address <= 0xBFFF) { // ERAM
-        ERAM[(ram_bank * 0x2000) + (address - 0xA000)] = content;
+        if (ram_enabled) {
+            uint8_t romtype = ROM[0x0147];
+            if (romtype >= 0x0F && romtype <= 0x13) {
+                if (ram_bank <= 0x03) {
+                    ERAM[(ram_bank * 0x2000) + (address - 0xA000)] = content;
+                } else if (ram_bank >= 0x08 && ram_bank <= 0x0C) {
+                    switch (ram_bank) {
+                        case 0x08:
+                        rtc_s = content;
+                        break;
+
+                        case 0x09:
+                        rtc_m = content;
+                        break;
+
+                        case 0x0A:
+                        rtc_h = content;
+                        break;
+
+                        case 0x0B: 
+                        rtc_dl = content;
+                        break;
+                        case 0x0C:
+                        rtc_dh = content;
+                    }
+                }
+            } else {
+                ERAM[(ram_bank * 0x2000) + (address - 0xA000)] = content;
+            }
+        }
+
+
     } else if (address >= 0xC000 && address <= 0xDFFF) { // WRAM
         WRAM[address-0xC000] = content;
     } else if (address >= 0xE000 && address <= 0xFDFF) { // echo ram
