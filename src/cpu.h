@@ -23,6 +23,8 @@ struct cpu { // 8-bit custom Sharp LR35902 processor
 
     uint8_t step(memory& mem);
 
+    long long all_cycles = 0;
+
     array<uint8_t, 8> registers = {}; // r8
     uint16_t PC = 0x0000; // program counter
     uint16_t SP = 0xFFFE; //stack pointer

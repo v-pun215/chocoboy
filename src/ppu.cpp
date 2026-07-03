@@ -5,6 +5,10 @@
 #include "memory.h"
 #include <fstream>
 #include <vector>
+#include <array>
+#include <tuple>
+#include <functional>
+#include <cstdint>
 #include "globals.h"
 #include <algorithm>
 #include <imgui.h>
@@ -12,14 +16,14 @@
 #include <imgui_impl_sdlrenderer2.h>
 
 using namespace std;
-
 void PPU::initSDL() {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
     SDL_CreateWindowAndRenderer(160, 144, 0, &window, &renderer);
     SDL_SetWindowTitle(window, "Chocoboy");
-    SDL_SetWindowSize(window, 480, 432);
+    SDL_SetWindowSize(window, 640, 576);
     SDL_SetWindowResizable(window, SDL_FALSE);
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
     SDL_StopTextInput();
 
@@ -146,7 +150,7 @@ void PPU::check_lyc(memory& mem) {
     }
 }
 
-void PPU::update(uint8_t cycles, memory& mem) {
+void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step) {
     /*bool LCD_enable = (LCDC >> 7)&1;
     if (!LCD_enable) { // lcd off
         return;
@@ -193,17 +197,7 @@ void PPU::update(uint8_t cycles, memory& mem) {
                 window_y=0;
                 check_lyc(mem);
 
-                // debugger overlay
-                ImGui_ImplSDLRenderer2_NewFrame();
-                ImGui_ImplSDL2_NewFrame();
-                ImGui::NewFrame();
-
-                ImGui::Begin("test");
-
-                ImGui::Text("hey there!");
-                ImGui::End();
-
-                ImGui::Render();
+                mem.debugging.render_debugger(mem, cpu, paused, step);
 
 
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);

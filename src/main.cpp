@@ -81,10 +81,39 @@ int main(int argc, char* argv[]) {
     //PPU ppu;
     //ppu.initSDL();
     int all_cycles=0;
-
+    bool paused = false;
+    bool step = false;
     auto t_start = std::chrono::high_resolution_clock::now();
+
     while (true) {
-        
+        if (paused) {
+            SDL_Event event;
+            while (SDL_PollEvent(&event)) {
+                ImGui_ImplSDL2_ProcessEvent(&event);
+                if (event.type == SDL_QUIT) exit(0);
+            }
+
+
+            mem.debugging.render_debugger(mem, gb_cpu, paused, step);
+
+            SDL_RenderClear(mem.ppu.renderer);
+            SDL_UpdateTexture(mem.ppu.texture, NULL, mem.ppu.framebuffer, 160*3);
+            SDL_RenderCopy(mem.ppu.renderer, mem.ppu.texture, NULL, NULL);
+            ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), mem.ppu.renderer);
+            SDL_RenderPresent(mem.ppu.renderer);
+
+            SDL_Delay(16);
+            if (!step) continue;
+        }
+        if (step) {
+            if (paused) {
+                //cout << "paused and step is true\n";
+                step = false;
+            } else {
+                step = false;
+                paused = true;
+            }
+        }
         uint8_t cycles = 0;
         //cout << "LY: " << (int)mem.ppu.LY << '\n';
         if (!gb_cpu.halted) { 
@@ -98,9 +127,10 @@ int main(int argc, char* argv[]) {
                 gb_cpu.halted=false;
             }
         }
-        all_cycles+=cycles; 
+        all_cycles+=cycles;
+        gb_cpu.all_cycles+=cycles;
         mem.tmr.handle_timer(cycles, mem.IF);
-        mem.ppu.update(cycles, mem);
+        mem.ppu.update(cycles, mem, gb_cpu, paused, step);
         gb_cpu.handle_interrupts(mem);
 
 
@@ -113,5 +143,17 @@ int main(int argc, char* argv[]) {
             }
             t_start = std::chrono::high_resolution_clock::now();
         }
-    }
+        /*
+        // debugger overlay
+        ImGui_ImplSDLRenderer2_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+        mem.ppu.render_debugger(mem, gb_cpu, paused);
+        ImGui::Render();
+        SDL_RenderClear(mem.ppu.renderer);
+        SDL_UpdateTexture(mem.ppu.texture, NULL, mem.ppu.framebuffer, 160 * 3);
+        SDL_RenderCopy(mem.ppu.renderer, mem.ppu.texture, NULL, NULL);
+        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), mem.ppu.renderer);
+        SDL_RenderPresent(mem.ppu.renderer);
+    */}
 }

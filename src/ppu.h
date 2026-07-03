@@ -7,11 +7,13 @@
 using namespace std;
 
 struct memory;
+struct cpu;
 struct PPU {
     // SDL stuff
     SDL_Renderer* renderer;
     SDL_Window* window;
     SDL_Texture* texture;
+    //void render_debugger(memory& mem, cpu& cpu, bool& paused, bool&s);
     void cycleSDL(memory& mem);
     void initSDL();
 
@@ -49,7 +51,7 @@ struct PPU {
     unsigned char framebufferA[160 * 144 * 3]; // RGBA24 needed to draw multiple framebuffers on top of each other
     void set_mode(uint8_t mode, uint8_t& IF);
     void check_lyc(memory& mem);
-    void update(uint8_t cycle, memory& mem);
+    void update(uint8_t cycle, memory& mem, cpu& cpu, bool& paused, bool& step);
     uint8_t tile_pixel_color(uint8_t x, uint8_t low, uint8_t high);
     uint8_t get_palette_shade(uint8_t palette, uint8_t index) ;
 

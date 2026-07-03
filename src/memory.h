@@ -8,9 +8,12 @@
 #include "timer.h"
 #include "joypad.h"
 #include "ppu.h"
+#include "debugger.h"
+
 using namespace std;
 
 struct memory {
+    debugger debugging;
     joypad joy;
     timer tmr;
     PPU ppu;
