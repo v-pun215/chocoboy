@@ -15,7 +15,7 @@ void render_cpu(memory& mem, cpu& cpu, bool& paused, bool& step) {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
     ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(200.0f, 250.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(200.0f, 450.0f), ImGuiCond_Always);
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
     ImGui::Begin("CPU", nullptr, window_flags);
 
@@ -27,7 +27,9 @@ void render_cpu(memory& mem, cpu& cpu, bool& paused, bool& step) {
     if (ImGui::Button("Step")) {
         step = !step;
     }
+    ImGui::Text("Previous opcode: 0x%X", mem.read(cpu.PC-1));
     ImGui::Text("Current opcode: 0x%X", mem.read(cpu.PC));
+    ImGui::Text("Next opcode: 0x%X", mem.read(cpu.PC+1));
     ImGui::Text("Cycles: %d", cpu.all_cycles);
     ImGui::Text("IME: %d", cpu.IME);
     ImGui::Text("Halted: %d", cpu.halted);

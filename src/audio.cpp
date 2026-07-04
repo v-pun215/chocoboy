@@ -1,5 +1,2 @@
 #include <iostream>
-
-struct APU {
-
-};
+#include "audio.h"

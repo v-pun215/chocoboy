@@ -151,10 +151,7 @@ void PPU::check_lyc(memory& mem) {
 }
 
 void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step) {
-    bool LCD_enable = (LCDC >> 7)&1;
-    if (!LCD_enable) { // lcd off
-        return;
-    }
+    
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -192,6 +189,7 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
             cycles_in_mode-=456;
             LY++;
             check_lyc(mem);
+            bool LCD_enable = (LCDC >> 7)&1;
             if (LY>153) {
                 LY=0;
                 window_y=0;

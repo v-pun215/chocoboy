@@ -3,7 +3,7 @@ TARGET = app
 SRC_DIR = src
 OUT_DIR = output
 
-CXX_STD = -std=c++17
+CXX_STD = -std=c++20
 DEBUG_FLAGS = -g
 
 # Fixed: Use relative paths for project-local includes

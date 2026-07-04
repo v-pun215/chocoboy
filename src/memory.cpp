@@ -6,6 +6,7 @@
 #include <iomanip>
 #include "cpu.h"
 #include "memory.h"
+#include <chrono>
 #include "globals.h"
 using namespace std;
 
@@ -58,19 +59,19 @@ uint8_t memory::read(uint16_t address) {
                 } else if (ram_bank >=0x08 && ram_bank <=0x0C) {
                     switch (ram_bank) {
                         case 0x08:
-                        return rtc_s;
+                        return latch_rtc_s;
 
                         case 0x09:
-                        return rtc_m;
+                        return latch_rtc_m;
 
                         case 0x0A:
-                        return rtc_h;
+                        return latch_rtc_h;
 
                         case 0x0B:
-                        return rtc_dl;
+                        return latch_rtc_dl;
 
                         case 0x0C:
-                        return rtc_dh;
+                        return latch_rtc_dh;
                     }
                 }
             }
@@ -215,7 +216,58 @@ void memory::write(uint16_t address, uint8_t content) {
             } else if (address >= 0x6000 && address <= 0x7FFF) {
                 // rtc latch
                 if (rtc_latch == 0x00 && content == 0x01) {
-                    // impl later
+                    cout << "rtc latch triggered!\n";
+                    auto now = chrono::system_clock::now();
+                    auto elapsed = now-last_time;
+                    last_time = now;
+                    long long total_secs = rtc_s;
+                    long long total_mins = rtc_m;
+                    long long total_hours = rtc_h;
+                    long long temp_dl = rtc_dl;
+                    if ((rtc_dh&1)==1) {
+                        temp_dl+=256;
+                    }
+                    if (((rtc_dh >> 6) & 1) == 0) {
+                        total_secs+=chrono::duration_cast<chrono::seconds>(elapsed).count();
+                        if (total_secs>=60) {
+                            // overflow
+                            total_mins+=total_secs/60;
+                            total_secs%=60;
+                        }
+                        if (total_mins>=60) {
+                            // overflow
+                            total_hours+=total_mins/60;
+                            total_mins%=60;
+                        }
+                        if (total_hours>=24) {
+                            // overflow
+                            temp_dl+=total_hours/24;
+                            total_hours%=24;
+                        }
+                        if (temp_dl>511) {
+                            rtc_dh|= (1 << 7);
+                        }
+                        temp_dl%=512;
+                        rtc_dh&=254;
+
+                        rtc_dh |= (temp_dl>>8)&1;
+                        rtc_dl = temp_dl & 255;
+
+                        rtc_s = total_secs;
+                        rtc_m = total_mins;
+                        rtc_h = total_hours;
+
+                        latch_rtc_dh = rtc_dh;
+                        latch_rtc_dl = rtc_dl;
+                        latch_rtc_s = total_secs;
+                        latch_rtc_m = total_mins;
+                        latch_rtc_h = total_hours;
+
+
+
+                    }
+
+
                 }
                 rtc_latch = content;
             }

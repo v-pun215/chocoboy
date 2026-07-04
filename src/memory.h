@@ -9,6 +9,7 @@
 #include "joypad.h"
 #include "ppu.h"
 #include "debugger.h"
+#include <chrono>
 
 using namespace std;
 
@@ -28,11 +29,19 @@ struct memory {
 
     // rtc
     uint8_t rtc_s = 0; // secs
-    uint8_t rtc_h = 0; // mins
-    uint8_t rtc_m = 0; // hrs
+    uint8_t rtc_h = 0; // hrs
+    uint8_t rtc_m = 0; // mins
     uint8_t rtc_dl = 0; // lower 8 bits of day counter
     uint8_t rtc_dh = 0; // upper 1 bit of day counter, carry bit, halt flag
+    uint8_t latch_rtc_s = 0; // secs
+    uint8_t latch_rtc_h = 0; // hrs
+    uint8_t latch_rtc_m = 0; // mins
+    uint8_t latch_rtc_dl = 0; // lower 8 bits of day counter
+    uint8_t latch_rtc_dh = 0; // upper 1 bit of day counter, carry bit, halt flag
     uint8_t rtc_latch =0;
+
+    chrono::time_point<chrono::system_clock> last_time = chrono::system_clock::now();
+
 
     array<uint8_t, 8192> VRAM = {}; // 8KB VRAM
     array<uint8_t, 131072> ERAM = {}; // 128KB External RAM (local game storage?)

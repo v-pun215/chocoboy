@@ -84,6 +84,8 @@ int main(int argc, char* argv[]) {
     bool paused = false;
     bool step = false;
     auto t_start = std::chrono::high_resolution_clock::now();
+    auto t_start_cpu = std::chrono::high_resolution_clock::now();
+    int cycles_per_second = 0;
 
     while (true) {
         if (paused) {
@@ -128,6 +130,7 @@ int main(int argc, char* argv[]) {
             }
         }
         all_cycles+=cycles;
+        cycles_per_second+=cycles;
         gb_cpu.all_cycles+=cycles;
         mem.tmr.handle_timer(cycles, mem.IF);
         mem.ppu.update(cycles, mem, gb_cpu, paused, step);
@@ -135,7 +138,11 @@ int main(int argc, char* argv[]) {
 
 
 
-
+        /*if ((chrono::high_resolution_clock::now() - t_start_cpu) >= 1000ms) {
+            t_start_cpu = chrono::high_resolution_clock::now();
+            cout << "CPU usage: " << cycles_per_second/4194304 * 100 << "%\n";
+            cycles_per_second=0;
+        }*/
         if (all_cycles >= 70244) {
             all_cycles=0;
             while ((chrono::high_resolution_clock::now() - t_start) < 16.67ms) {
@@ -143,17 +150,5 @@ int main(int argc, char* argv[]) {
             }
             t_start = std::chrono::high_resolution_clock::now();
         }
-        /*
-        // debugger overlay
-        ImGui_ImplSDLRenderer2_NewFrame();
-        ImGui_ImplSDL2_NewFrame();
-        ImGui::NewFrame();
-        mem.ppu.render_debugger(mem, gb_cpu, paused);
-        ImGui::Render();
-        SDL_RenderClear(mem.ppu.renderer);
-        SDL_UpdateTexture(mem.ppu.texture, NULL, mem.ppu.framebuffer, 160 * 3);
-        SDL_RenderCopy(mem.ppu.renderer, mem.ppu.texture, NULL, NULL);
-        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), mem.ppu.renderer);
-        SDL_RenderPresent(mem.ppu.renderer);
-    */}
+    }
 }
