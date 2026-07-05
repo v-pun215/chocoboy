@@ -42,6 +42,7 @@ struct PPU {
     };
 
     int ppu_mode = OAM_SCAN;
+    bool lcd_was_on = true;
     int cycles_in_mode = 0;
 
 

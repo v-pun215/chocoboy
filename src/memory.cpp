@@ -34,6 +34,55 @@ uint8_t memory::read_ROM(uint16_t address) {
     return ROM[address];
 }
 
+void memory::update_currn_rtc() {
+    auto now = chrono::system_clock::now();
+    auto elapsed = now-last_time;
+    auto sec_elapsed = chrono::duration_cast<chrono::seconds>(elapsed).count();
+    if (sec_elapsed==0) {
+        return;
+    }
+    last_time += chrono::seconds(sec_elapsed);
+    long long total_secs = rtc_s;
+    long long total_mins = rtc_m;
+    long long total_hours = rtc_h;
+    long long temp_dl = rtc_dl;
+    if ((rtc_dh&1)==1) {
+        temp_dl+=256;
+    }
+    if (((rtc_dh >> 6) & 1) == 0) {
+        total_secs+=sec_elapsed;
+        if (total_secs>=60) {
+            // overflow
+            total_mins+=total_secs/60;
+            total_secs%=60;
+        }
+        if (total_mins>=60) {
+            // overflow
+            total_hours+=total_mins/60;
+            total_mins%=60;
+        }
+        if (total_hours>=24) {
+            // overflow
+            temp_dl+=total_hours/24;
+            total_hours%=24;
+        }
+        if (temp_dl>511) {
+            rtc_dh|= (1 << 7);
+        }
+        temp_dl%=512;
+        rtc_dh&=254;
+
+        rtc_dh |= (temp_dl>>8)&1;
+        rtc_dl = temp_dl & 255;
+
+        rtc_s = total_secs;
+        rtc_m = total_mins;
+        rtc_h = total_hours;
+
+
+    }
+}
+
 uint8_t memory::read(uint16_t address) {
 
     if (address >= 0x0000 && address <= 0x7FFF) { // Cartridge ROM
@@ -57,21 +106,22 @@ uint8_t memory::read(uint16_t address) {
                 if (ram_bank <=0x03) {
                     return ERAM[(ram_bank*0x2000) + (address -0xA000)];
                 } else if (ram_bank >=0x08 && ram_bank <=0x0C) {
+                    is_latch=true;
                     switch (ram_bank) {
                         case 0x08:
-                        return latch_rtc_s;
+                        return (is_latch) ? latch_rtc_s : rtc_s;
 
                         case 0x09:
-                        return latch_rtc_m;
+                        return (is_latch) ? latch_rtc_m : rtc_m;
 
                         case 0x0A:
-                        return latch_rtc_h;
+                        return (is_latch) ? latch_rtc_h : rtc_h;
 
                         case 0x0B:
-                        return latch_rtc_dl;
+                        return (is_latch) ? latch_rtc_dl : rtc_dl;
 
                         case 0x0C:
-                        return latch_rtc_dh;
+                        return (is_latch) ? latch_rtc_dh : rtc_dh;
                     }
                 }
             }
@@ -216,6 +266,7 @@ void memory::write(uint16_t address, uint8_t content) {
             } else if (address >= 0x6000 && address <= 0x7FFF) {
                 // rtc latch
                 if (rtc_latch == 0x00 && content == 0x01) {
+                    is_latch = true;
                     cout << "rtc latch triggered!\n";
                     auto now = chrono::system_clock::now();
                     auto elapsed = now-last_time;
@@ -268,6 +319,8 @@ void memory::write(uint16_t address, uint8_t content) {
                     }
 
 
+                } else {
+                    is_latch = false;
                 }
                 rtc_latch = content;
             }
@@ -287,23 +340,24 @@ void memory::write(uint16_t address, uint8_t content) {
                 } else if (ram_bank >= 0x08 && ram_bank <= 0x0C) {
                     switch (ram_bank) {
                         case 0x08:
-                        rtc_s = content;
+                        rtc_s = content & 0x3F;
                         break;
 
                         case 0x09:
-                        rtc_m = content;
+                        rtc_m = content & 0x3F;
                         break;
 
                         case 0x0A:
-                        rtc_h = content;
+                        rtc_h = content & 0x1F;
                         break;
 
                         case 0x0B: 
                         rtc_dl = content;
                         break;
                         case 0x0C:
-                        rtc_dh = content;
+                        rtc_dh = content & 0xC1;
                     }
+                    last_time = chrono::system_clock::now();
                 }
             } else {
                 ERAM[(ram_bank * 0x2000) + (address - 0xA000)] = content;

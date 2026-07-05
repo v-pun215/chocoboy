@@ -151,7 +151,23 @@ void PPU::check_lyc(memory& mem) {
 }
 
 void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step) {
-    
+    bool LCD_enable = (LCDC >> 7)&1;
+
+    if (!LCD_enable) {
+        if (lcd_was_on) {
+            LY = 0;
+            cycles_in_mode = 0;
+            ppu_mode = H_BLANK;
+            STAT = (STAT & 0xFC);
+            lcd_was_on = false;
+        }
+        cycleSDL(mem);
+        return;
+    }
+    if (!lcd_was_on) {
+        lcd_was_on = true; // transitioning back on
+    }
+
     cycles_in_mode+=cycles;
 
     switch (ppu_mode) {
@@ -189,7 +205,7 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
             cycles_in_mode-=456;
             LY++;
             check_lyc(mem);
-            bool LCD_enable = (LCDC >> 7)&1;
+            //bool LCD_enable = (LCDC >> 7)&1;
             if (LY>153) {
                 LY=0;
                 window_y=0;
@@ -197,7 +213,7 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
 
                 mem.debugging.render_debugger(mem, cpu, paused, step);
 
-
+                
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
 

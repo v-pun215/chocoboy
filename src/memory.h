@@ -28,6 +28,8 @@ struct memory {
     bool mbc1_mode = false;
 
     // rtc
+    bool is_latch = false;
+    void update_currn_rtc();
     uint8_t rtc_s = 0; // secs
     uint8_t rtc_h = 0; // hrs
     uint8_t rtc_m = 0; // mins
