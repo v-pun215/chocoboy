@@ -6,11 +6,14 @@ OUT_DIR = output
 CXX_STD = -std=c++20
 DEBUG_FLAGS = -g
 
+EMXX = em++
+WASM_OUT = web
+
 # Fixed: Use relative paths for project-local includes
 INCLUDES = -Iinclude/imgui -Iimgui
 
 ifeq ($(UNAME_S),Darwin)
-    CXX = /opt/homebrew/bin/g++-15
+    CXX = clang++
     CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES) -I/opt/homebrew/include/SDL2
     LDFLAGS = -L/opt/homebrew/lib -lSDL2
 else ifeq ($(UNAME_S),Linux)
@@ -54,3 +57,22 @@ run: all
 clean:
 	rm -rf $(OUT_DIR)
 .PHONY: all run clean
+
+wasm:
+	mkdir -p $(WASM_OUT)
+
+	$(EMXX) \
+		$(SRC_FILES) \
+		$(IMGUI_FILES) \
+		-Iinclude/imgui \
+		-Iimgui \
+		-sUSE_SDL=2 \
+        -sSTACK_SIZE=1048576 \
+        -sALLOW_MEMORY_GROWTH=0 \
+        -sINITIAL_MEMORY=67108864 \
+		-gsource-map \
+		-sSAFE_HEAP=1 \
+		-sSTACK_OVERFLOW_CHECK=2 \
+		--preload-file roms \
+        --preload-file test \
+		-o $(WASM_OUT)/app.html

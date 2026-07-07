@@ -26,6 +26,7 @@ void PPU::initSDL() {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
     SDL_StopTextInput();
+    /*
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -37,6 +38,7 @@ void PPU::initSDL() {
     );
     ImGui_ImplSDLRenderer2_Init(renderer);
     
+    */
 
 }
 
@@ -126,7 +128,7 @@ void PPU::cycleSDL(memory& mem) {
                 break;
             }
         }
-        ImGui_ImplSDL2_ProcessEvent(&event);
+        //ImGui_ImplSDL2_ProcessEvent(&event);
     }
 }
 void PPU::set_mode(uint8_t mode, uint8_t& IF) {
@@ -182,6 +184,7 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
         if (cycles_in_mode >= 172) {
             cycles_in_mode-=172;
             set_mode(H_BLANK, mem.IF);
+            //cout << "she's gonna render now\n";
             render_scanline(mem);
         }
         break;
@@ -211,13 +214,13 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
                 window_y=0;
                 check_lyc(mem);
 
-                mem.debugging.render_debugger(mem, cpu, paused, step);
+                //mem.debugging.render_debugger(mem, cpu, paused, step);
 
                 
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
 
-                ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
+                //ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
                 SDL_RenderPresent(renderer);
                 cycleSDL(mem);
                 set_mode(OAM_SCAN, mem.IF);

@@ -489,14 +489,13 @@ void memory::loadROM(string path) { // to-do: implement MBC
             cout << "error: ROM too big for current implementation\n";
             throw runtime_error("cannot copy ROM into memory");
         }
-        
+        ROM.resize(buffer.size());
         copy(
             buffer.begin(),
             buffer.end(),
             ROM.begin()
         );
 
-        if (debug) {cout << "ROM loaded successfully!\n";}
     } catch (const exception& e){
         cerr << "Caught: " << e.what() << '\n';
         exit(EXIT_FAILURE);
@@ -523,8 +522,6 @@ void memory::boot(string boot_rom) {
             buffer.end(),
             boot_ROM.begin()
         );
-
-        if (debug) {cout << "BOOT ROM loaded successfully!\n";}
     } catch (const exception& e){
         cerr << "Caught: " << e.what() << '\n';
         exit(EXIT_FAILURE);

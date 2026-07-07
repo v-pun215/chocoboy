@@ -45,7 +45,7 @@ struct APU {
         uint8_t len_timer = 0; // nr41
         uint8_t vol_env = 0; // nr42
         uint8_t freq_rand = 0; // nr43
-        uint8_t control = 0;
+        uint8_t control = 0; //nr44
     };
 
 
