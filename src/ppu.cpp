@@ -14,10 +14,11 @@
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
+#include "audio.h"
 
 using namespace std;
-void PPU::initSDL() {
-    SDL_Init(SDL_INIT_VIDEO);
+void PPU::initSDL(memory& mem) {
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
     SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
     SDL_CreateWindowAndRenderer(160, 144, 0, &window, &renderer);
     SDL_SetWindowTitle(window, "Chocoboy");
@@ -26,6 +27,17 @@ void PPU::initSDL() {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 160, 144);
     SDL_StopTextInput();
+
+    // audio
+    want.freq = 44100;
+    want.format = AUDIO_S16SYS;
+    want.channels=1;
+    want.samples=512;
+    want.callback = nullptr;
+    dev = SDL_OpenAudioDevice(nullptr, 0, &want, &have, 0);
+
+    SDL_PauseAudioDevice(dev, 0);
+
     /*
 
     IMGUI_CHECKVERSION();
@@ -215,8 +227,10 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
                 check_lyc(mem);
 
                 //mem.debugging.render_debugger(mem, cpu, paused, step);
+                // audio
 
-                
+                SDL_QueueAudio(dev, mem.apu.sample_buff, mem.apu.frame_sample_count*sizeof(int16_t));
+                mem.apu.frame_sample_count=0;
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
 

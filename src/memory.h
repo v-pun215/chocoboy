@@ -10,6 +10,7 @@
 #include "ppu.h"
 #include "debugger.h"
 #include <chrono>
+#include "audio.h"
 
 using namespace std;
 
@@ -18,6 +19,7 @@ struct memory {
     joypad joy;
     timer tmr;
     PPU ppu;
+    APU apu;
     vector<uint8_t> ROM; // ROM
     array<uint8_t, 256> boot_ROM={};
     bool boot_enabled = true;

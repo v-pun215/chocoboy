@@ -1,5 +1,5 @@
 UNAME_S := $(shell uname -s)
-TARGET = app
+TARGET = chocoboy
 SRC_DIR = src
 OUT_DIR = output
 
@@ -9,7 +9,6 @@ DEBUG_FLAGS = -g
 EMXX = em++
 WASM_OUT = web
 
-# Fixed: Use relative paths for project-local includes
 INCLUDES = -Iinclude/imgui -Iimgui
 
 ifeq ($(UNAME_S),Darwin)
@@ -41,12 +40,10 @@ $(OUT_DIR)/$(TARGET): $(OBJS)
 	@mkdir -p $(OUT_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-# Build rule for your main source files
 $(OUT_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(OUT_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Build rule for ImGui source files
 $(OUT_DIR)/imgui_%.o: imgui/%.cpp
 	@mkdir -p $(OUT_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@

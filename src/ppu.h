@@ -13,9 +13,11 @@ struct PPU {
     SDL_Renderer* renderer;
     SDL_Window* window;
     SDL_Texture* texture;
+    SDL_AudioSpec want{}, have{};
+    SDL_AudioDeviceID dev = 0;
     //void render_debugger(memory& mem, cpu& cpu, bool& paused, bool&s);
     void cycleSDL(memory& mem);
-    void initSDL();
+    void initSDL(memory& mem);
 
 
     uint8_t LCDC = 0; // LCD control

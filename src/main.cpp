@@ -45,7 +45,7 @@ void doctor_print(cpu& gb_cpu, memory& mem) {
 int main(int argc, char* argv[]) {
     bool doctor = false;
     if (argc <2) {
-        cout << "USAGE: ROM_PATH [SERIAL/DOCTOR]\n";
+        cout << "USAGE: chocoboy ROM_PATH [SERIAL/DOCTOR]\n";
         exit(EXIT_FAILURE);
     }
     if (argc>2) {
@@ -77,7 +77,7 @@ int main(int argc, char* argv[]) {
     gb_cpu.flag_c=1;*/
     mem.boot("./roms/dmg_boot.bin");
     mem.loadROM(rom_path);
-    mem.ppu.initSDL();
+    mem.ppu.initSDL(mem);
     //PPU ppu;
     //ppu.initSDL();
     int all_cycles=0;
@@ -134,6 +134,7 @@ int main(int argc, char* argv[]) {
         gb_cpu.all_cycles+=cycles;
         mem.tmr.handle_timer(cycles, mem.IF);
         mem.ppu.update(cycles, mem, gb_cpu, paused, step);
+        mem.apu.update(cycles);
         gb_cpu.handle_interrupts(mem);
 
 

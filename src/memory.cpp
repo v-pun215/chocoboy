@@ -197,6 +197,19 @@ uint8_t memory::read(uint16_t address) {
             
             case 0xFF50:
             return boot_enabled ? 0 : 1;
+
+            // audio
+            case 0xff16:
+            return apu.ch2.len_duty | 0x3f;
+            
+            case 0xff17:
+            return apu.ch2.vol_env;
+
+            case 0xff18:
+            return 0xff; // write only
+
+            case 0xff19:
+            return apu.ch2.period_high_ctrl | 0xbf;
         }
         return 0xFF; // for now
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -387,6 +400,29 @@ void memory::write(uint16_t address, uint8_t content) {
             IF = content;
         } else if (address >= 0xFF10 && address <= 0xFF26) {
             //audio
+            switch (address) {
+                case 0xFF26:
+                apu.audio_master_control = content & 0x80;
+                break;
+                case 0xFF16:
+                apu.ch2.len_duty = content;
+                break;
+
+                case 0xff17:
+                apu.ch2.vol_env = content;
+                break;
+
+                case 0xff18:
+                apu.ch2.period_low = content;
+                break;
+
+                case 0xff19:
+                apu.ch2.period_high_ctrl = content;
+                if (content&0x80) {
+                    apu.ch2.trigger();
+                }
+                break;
+            }
         } else if (address >= 0xFF30 && address <= 0xFF3F) {
             // wave pattern
         } else if (address == 0xFF04) {
