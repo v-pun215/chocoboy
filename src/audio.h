@@ -34,6 +34,17 @@ struct APU {
         int sweep_tmr = 0;
         bool sweep_enabled=false;
 
+        int get_sweep_pace() {
+            return (sweep >> 4) & 7;
+        }
+
+        int get_sweep_direction() {
+            return (sweep >>3) & 1;
+        }
+
+        int get_sweep_step() {
+            return sweep & 7;
+        }
 
         int get_period() {
             return period_low | ((period_high_ctrl & 0x07) << 8);
@@ -59,6 +70,11 @@ struct APU {
             return (period_high_ctrl >>6) & 1;
         }
 
+        void write_period(int new_period) {
+            period_low = new_period & 0xFF;
+            period_high_ctrl = (period_high_ctrl & 0xF8) | (new_period >> 8) & 0x07;
+        }
+
         uint8_t output() {
             if (!enabled) {
                 return 0;
@@ -71,6 +87,21 @@ struct APU {
             };
 
             return duty_table[get_duty_cyc_index()][duty_pos] ? currn_vol : 0;
+        }
+
+        int calc_sweep_target() {
+            int offset = shadow_period >> get_sweep_step();
+            int new_period;
+            if (get_sweep_direction() ==0) {
+                new_period = shadow_period+offset;
+            } else {
+                new_period = shadow_period-offset;
+            }
+
+            if (new_period>2047) {
+                enabled=false;
+            }
+            return new_period;
         }
 
         void trigger() {
@@ -87,6 +118,40 @@ struct APU {
             }
 
             shadow_period=get_period();
+            if (get_sweep_pace() ==0) {
+                sweep_tmr=8;
+            } else {
+                sweep_tmr=get_sweep_pace();
+            }
+
+            sweep_enabled=(get_sweep_pace()>0) || (get_sweep_step() > 0);
+
+            if (get_sweep_step()>0) {
+                calc_sweep_target();
+            }
+        }
+
+        void tick_sweep() {
+            sweep_tmr--;
+
+            if (sweep_tmr<=0) {
+                if (get_sweep_pace()==0) {
+                    sweep_tmr = 8;
+                } else {
+                    sweep_tmr = get_sweep_pace();
+                }
+
+                if (sweep_enabled && (get_sweep_pace() >0)) {
+                    int new_period = calc_sweep_target();
+
+                    if (new_period <= 2047 && (get_sweep_step() >0)) {
+                        shadow_period=new_period;
+                        write_period(new_period);
+
+                        calc_sweep_target();
+                    }
+                }
+            }
         }
 
         void tick_freq_tmr(int cycles) {
@@ -117,7 +182,7 @@ struct APU {
             }
             if (envelope_tmr==0) {
                 envelope_tmr=envelope_period();
-                if (envelope_period() ==1 && currn_vol<15) {
+                if (envelope_dir() ==1 && currn_vol<15) {
                     currn_vol++;
                 } else if (envelope_dir() ==0 && currn_vol>0) {
                     currn_vol--;
@@ -220,7 +285,7 @@ struct APU {
             }
             if (envelope_tmr==0) {
                 envelope_tmr=envelope_period();
-                if (envelope_period() ==1 && currn_vol<15) {
+                if (envelope_dir() ==1 && currn_vol<15) {
                     currn_vol++;
                 } else if (envelope_dir() ==0 && currn_vol>0) {
                     currn_vol--;

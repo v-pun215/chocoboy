@@ -199,6 +199,25 @@ uint8_t memory::read(uint16_t address) {
             return boot_enabled ? 0 : 1;
 
             // audio
+
+            // channel 1
+            case 0xff10:
+            //nr10
+            return apu.ch1.sweep;
+
+            case 0xff11:
+            return apu.ch1.len_duty | 0x3f;
+
+            case 0xff12:
+            return apu.ch1.vol_env;
+
+            case 0xff13:
+            return 0xff;
+
+            case 0xff14:
+            return apu.ch1.period_high_ctrl | 0xbf;
+            
+            // channel 2 
             case 0xff16:
             return apu.ch2.len_duty | 0x3f;
             
@@ -401,6 +420,34 @@ void memory::write(uint16_t address, uint8_t content) {
         } else if (address >= 0xFF10 && address <= 0xFF26) {
             //audio
             switch (address) {
+                case 0xFF25:
+                break;
+
+                case 0xff10:
+                // nr10
+                apu.ch1.sweep = content;
+                break;
+
+                case 0xff11:
+                apu.ch1.len_duty = content;
+                break;
+
+                case 0xff12:
+                apu.ch1.vol_env = content;
+                break;
+
+                case 0xff13:
+                apu.ch1.period_low = content;
+                break;
+
+                case 0xff14:
+                apu.ch1.period_high_ctrl = content;
+                if ((content >> 7) & 1) {
+                    apu.ch1.trigger();
+                }
+                break;
+
+
                 case 0xFF26:
                 apu.audio_master_control = content & 0x80;
                 break;

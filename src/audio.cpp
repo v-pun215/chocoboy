@@ -9,7 +9,7 @@ void APU::update(uint8_t cycles) {
     if (!apu_enabled){
         return;
     }
-
+    ch1.tick_freq_tmr(cycles);
     ch2.tick_freq_tmr(cycles);
 
     //512hz = 8192 cycles
@@ -18,13 +18,20 @@ void APU::update(uint8_t cycles) {
         frame_squencer_cycles-=8192;
         switch (frame_squencer_step%8) {
             case 0:
-            case 2:
             case 4:
+            ch1.tick_length();
+            ch2.tick_length();
+            break;
+
+            case 2:
             case 6:
+            ch1.tick_length();
+            ch1.tick_sweep();
             ch2.tick_length();
             break;
 
             case 7:
+            ch1.tick_env();
             ch2.tick_env();
             break;
         }
@@ -47,6 +54,10 @@ void APU::push_sample() {
 }
 
 int16_t APU::mix() {
+    uint8_t ch1_out = ch1.output();
     uint8_t ch2_out = ch2.output();
-    return (int16_t)(ch2_out*200-1500);
+
+    uint8_t combined = ch1_out + ch2_out;
+
+    return (int16_t)(combined*100-1500);
 }
