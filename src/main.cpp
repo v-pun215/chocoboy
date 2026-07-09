@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
             }
 
 
-            mem.debugging.render_debugger(mem, gb_cpu, paused, step);
+            //mem.debugging.render_debugger(mem, gb_cpu, paused, step);
 
             SDL_RenderClear(mem.ppu.renderer);
             SDL_UpdateTexture(mem.ppu.texture, NULL, mem.ppu.framebuffer, 160*3);
@@ -139,17 +139,17 @@ int main(int argc, char* argv[]) {
 
 
 
-        /*if ((chrono::high_resolution_clock::now() - t_start_cpu) >= 1000ms) {
-            t_start_cpu = chrono::high_resolution_clock::now();
-            cout << "CPU usage: " << cycles_per_second/4194304 * 100 << "%\n";
-            cycles_per_second=0;
-        }*/
-        if (all_cycles >= 70244) {
-            all_cycles=0;
-            while ((chrono::high_resolution_clock::now() - t_start) < 16.67ms) {
-                // do nothing
-            }
-            t_start = std::chrono::high_resolution_clock::now();
+        auto now = chrono::high_resolution_clock::now();
+        auto elapsed = chrono::duration_cast<chrono::microseconds>(now - t_start_cpu).count();
+
+        if (elapsed >= 1000000) { // 1 second in microseconds
+            // Calculate how many cycles *should* have run in this exact timeframe
+            double target_cycles = 4194304.0 * (elapsed / 1000000.0);
+            
+            cout << "True Emulation Speed: " << (cycles_per_second / target_cycles) * 100.0 << "%\n";
+            
+            cycles_per_second = 0;
+            t_start_cpu = now;
         }
     }
 }

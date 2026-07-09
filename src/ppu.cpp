@@ -19,7 +19,7 @@
 using namespace std;
 void PPU::initSDL(memory& mem) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+    //SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
     SDL_CreateWindowAndRenderer(160, 144, 0, &window, &renderer);
     SDL_SetWindowTitle(window, "Chocoboy");
     SDL_SetWindowSize(window, 480, 432);
@@ -231,6 +231,12 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
 
                 SDL_QueueAudio(dev, mem.apu.sample_buff, mem.apu.frame_sample_count*sizeof(int16_t));
                 mem.apu.frame_sample_count=0;
+                
+                const uint32_t target_queue_size = 2950 *2;
+                while (SDL_GetQueuedAudioSize(dev) > target_queue_size) {
+                    SDL_Delay(1);
+                }
+
                 SDL_UpdateTexture(texture, NULL, framebuffer, 160*3);
                 SDL_RenderCopy(renderer, texture, NULL, NULL);
 
