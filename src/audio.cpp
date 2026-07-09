@@ -6,38 +6,37 @@
 
 void APU::update(uint8_t cycles) {
     bool apu_enabled = (audio_master_control>>7)&1;
-    if (!apu_enabled){
-        return;
-    }
-    ch1.tick_freq_tmr(cycles);
-    ch2.tick_freq_tmr(cycles);
+    if (apu_enabled){
 
-    //512hz = 8192 cycles
-    frame_squencer_cycles+=cycles;
-    while(frame_squencer_cycles>=8192) {
-        frame_squencer_cycles-=8192;
-        switch (frame_squencer_step%8) {
-            case 0:
-            case 4:
-            ch1.tick_length();
-            ch2.tick_length();
-            break;
+        ch1.tick_freq_tmr(cycles);
+        ch2.tick_freq_tmr(cycles);
 
-            case 2:
-            case 6:
-            ch1.tick_length();
-            ch1.tick_sweep();
-            ch2.tick_length();
-            break;
+        //512hz = 8192 cycles
+        frame_squencer_cycles+=cycles;
+        while(frame_squencer_cycles>=8192) {
+            frame_squencer_cycles-=8192;
+            switch (frame_squencer_step%8) {
+                case 0:
+                case 4:
+                ch1.tick_length();
+                ch2.tick_length();
+                break;
 
-            case 7:
-            ch1.tick_env();
-            ch2.tick_env();
-            break;
+                case 2:
+                case 6:
+                ch1.tick_length();
+                ch1.tick_sweep();
+                ch2.tick_length();
+                break;
+
+                case 7:
+                ch1.tick_env();
+                ch2.tick_env();
+                break;
+            }
+            frame_squencer_step++;
         }
-        frame_squencer_step++;
     }
-
     cycle_add+=cycles;
     while(cycle_add>=cyclers_per_sample) {
         cycle_add-=cyclers_per_sample;
