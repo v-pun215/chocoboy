@@ -391,6 +391,120 @@ struct APU {
         uint8_t vol_env = 0; // nr42
         uint8_t freq_rand = 0; // nr43
         uint8_t control = 0; //nr44
+
+        bool enabled = false;
+        bool dac_enabled = false;
+        int frequency_timer = 0;
+        int lfsr = 0;
+        int currn_volume = 0;
+        int envelope_tmr = 0;
+        int len_counter = 0;
+
+        int clock_shift() {
+            return (freq_rand >> 4) & 0x0f;
+        }
+
+        int short_mode() {
+            return (freq_rand >> 3) & 0x01;
+        }
+
+        int clock_divider() {
+            return freq_rand & 0x07;
+        }
+
+        int tmr_period() {
+            if (clock_divider()==0) {
+                return 8;
+            } else {
+                return clock_divider()*16;
+            }
+            return 0;
+        }
+
+        int initial_vol() {
+            return (vol_env >> 4) & 0x0f;
+        }
+
+        int envelope_dir() {
+            return (vol_env>> 3) & 0x01;
+        }
+
+        int envelope_period() {
+            return vol_env & 0x07;
+        }
+
+        int length_enable() {
+            return (control >> 6) & 0x1;
+        }
+
+        void trigger() {
+            if (!dac_enabled) {
+                return;
+            }
+            enabled = true;
+            lfsr = 0x7fff;
+            frequency_timer = tmr_period();
+            currn_volume = initial_vol();
+            envelope_tmr = envelope_period();
+
+            if (len_counter==0) {
+                len_counter = 64;
+            }
+        }
+
+        void tick_freq_tmr(int cycles) {
+            frequency_timer-=cycles;
+            while (frequency_timer <=0) {
+                frequency_timer+=tmr_period();
+
+                bool xorr = (lfsr & 0x01) xor ((lfsr >> 1) & 0x01);
+                lfsr >>=1;
+                lfsr |= (xorr<<14);
+
+                if (short_mode()) {
+                    lfsr&= ~(1 << 6);
+                    lfsr |= (xorr<<6);
+                }
+            }
+        }
+
+        void tick_length() {
+            if (length_enable() && len_counter>0) {
+                len_counter--;
+                if (len_counter==0){
+                    enabled = false;
+                }
+            }
+        }
+
+        void tick_env() {
+            if (envelope_period() ==0) {
+                return;
+            }
+
+            envelope_tmr--;
+            if (envelope_tmr==0) {
+                envelope_tmr = envelope_period();
+                if (envelope_dir() == 1 && currn_volume<15) {
+                    currn_volume++;
+                } else if (envelope_dir() == 0 && currn_volume >0) {
+                    currn_volume--;
+                }
+            }
+        }
+
+        uint8_t output() {
+            if (!enabled || !dac_enabled) {
+                return 0;
+            }
+            if ((lfsr & 0x1 )== 0) {
+                return currn_volume;
+            } else {
+                return 0;
+            }
+            return 0;
+        }
+
     };
 
     channel_1 ch1;
