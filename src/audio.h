@@ -301,6 +301,89 @@ struct APU {
         uint8_t period_low = 0; // nr33
         uint8_t period_high_ctrl = 0; // nr34
         array<uint8_t, 16> wave_ram{}; 
+
+        bool enabled = false;
+        bool dac_enabled = false;
+        int frequency_tmr = 0;
+        int wave_pos = 0;
+        int currn_sample = 0;
+        int len_counter = 0;
+
+        int get_period() {
+            return period_low | ((period_high_ctrl & 0x07) << 8);
+        }
+
+        int len_enable() {
+            return (period_high_ctrl >>6) & 1;
+        }
+
+        int volume_shift() {
+            int vol = (output_level>>5)&0x03;
+            //shift right by these vals
+            switch (vol) {
+                case 0:
+                return 4;
+
+                case 1:
+                return 0;
+
+                case 2:
+                return 1;
+
+                case 3:
+                return 2;
+            }
+            return 0;
+        }
+
+        void trigger() {
+            if (!dac_enabled) {
+                return;
+            }
+
+            enabled = true;
+            wave_pos=0;
+            frequency_tmr= (2048- get_period()) * 2;
+            if (len_counter==0) {
+                len_counter=256;
+            }
+        }
+
+        void tick_freq_tmr(int cycles) {
+            frequency_tmr-=cycles;
+            while (frequency_tmr<=0) {
+                frequency_tmr+=(2048-get_period())*2;
+                wave_pos=(wave_pos+1)%32;
+
+                int byte_index = wave_pos/2;
+                if (wave_pos%2==0) {
+                    // even
+                    currn_sample = (wave_ram[byte_index] >> 4) & 0x0F; //high
+                } else {
+                    currn_sample = wave_ram[byte_index] & 0x0F; //low
+                }
+            }
+        }
+
+        void tick_length() {
+            if (len_enable() && len_counter>0) {
+                len_counter--;
+                if (len_counter==0){
+                    enabled=false;
+                }
+            }
+        }
+
+        uint8_t output() {
+            if (!enabled) {
+                return 0;
+            }
+            if (!dac_enabled) {
+                return 0;
+            }
+            return currn_sample >> volume_shift();
+        }
+
     };
 
     struct channel_4 {

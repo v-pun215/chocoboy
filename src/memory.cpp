@@ -229,6 +229,25 @@ uint8_t memory::read(uint16_t address) {
 
             case 0xff19:
             return apu.ch2.period_high_ctrl | 0xbf;
+
+            // channel 3
+            case 0xff1a:
+            return apu.ch3.dac;
+
+            case 0xff1b:
+            return 0xFF; // write only
+
+            case 0xff1c:
+            return apu.ch3.output_level;
+
+            case 0xff1d:
+            return 0xff; // write only
+
+            case 0xff1e:
+            return apu.ch3.period_high_ctrl | 0xbf;
+
+            case 0xFF30 ... 0xFF3F:
+            return apu.ch3.wave_ram[address-0xFF30];
         }
         return 0xFF; // for now
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -469,9 +488,39 @@ void memory::write(uint16_t address, uint8_t content) {
                     apu.ch2.trigger();
                 }
                 break;
+                // channel 3
+                case 0xff1a:
+                apu.ch3.dac = content;
+                if ((content >> 7) & 1) {
+                    apu.ch3.dac_enabled = true;
+                } else {
+                    apu.ch3.dac_enabled=false;
+                }
+                break;
+
+                case 0xff1b:
+                apu.ch3.len_timer = content;
+                break;
+
+                case 0xff1c:
+                apu.ch3.output_level = content;
+                break;
+
+
+                case 0xff1d:
+                apu.ch3.period_low=content;
+                break;
+
+                case 0xff1e:
+                apu.ch3.period_high_ctrl = content;
+                if ((content >> 7) & 1) {
+                    apu.ch3.trigger();
+                }
+                break;
             }
         } else if (address >= 0xFF30 && address <= 0xFF3F) {
             // wave pattern
+            apu.ch3.wave_ram[address-0xff30] = content;
         } else if (address == 0xFF04) {
             tmr.DIV = 0;
         } else if (address == 0xFF05) {

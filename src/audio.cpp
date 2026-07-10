@@ -10,6 +10,7 @@ void APU::update(uint8_t cycles) {
 
         ch1.tick_freq_tmr(cycles);
         ch2.tick_freq_tmr(cycles);
+        ch3.tick_freq_tmr(cycles);
 
         //512hz = 8192 cycles
         frame_squencer_cycles+=cycles;
@@ -20,6 +21,7 @@ void APU::update(uint8_t cycles) {
                 case 4:
                 ch1.tick_length();
                 ch2.tick_length();
+                ch3.tick_length();
                 break;
 
                 case 2:
@@ -27,6 +29,7 @@ void APU::update(uint8_t cycles) {
                 ch1.tick_length();
                 ch1.tick_sweep();
                 ch2.tick_length();
+                ch3.tick_length();
                 break;
 
                 case 7:
@@ -55,8 +58,17 @@ void APU::push_sample() {
 int16_t APU::mix() {
     uint8_t ch1_out = ch1.output();
     uint8_t ch2_out = ch2.output();
+    uint8_t ch3_out = ch3.output();
+    int16_t ch1_signal = (int16_t)ch1_out - 7;
+    int16_t ch2_signal = (int16_t)ch2_out - 7;
+    int16_t ch3_signal = (int16_t)ch3_out - 7;
 
-    uint8_t combined = ch1_out + ch2_out;
+    int32_t mixed = ch1_signal + ch2_signal + ch3_signal;
 
-    return (int16_t)(combined*100-1500);
+    mixed *=1000; 
+
+    if (mixed > 32767)  mixed = 32767;
+    if (mixed < -32768) mixed = -32768;
+
+    return (int16_t)mixed;
 }
