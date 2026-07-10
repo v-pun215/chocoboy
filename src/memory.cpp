@@ -259,7 +259,8 @@ uint8_t memory::read(uint16_t address) {
             case 0xff22:
             return apu.ch4.freq_rand;
 
-            case 0xff
+            case 0xff23:
+            return (apu.ch4.control >> 6) & 0x01;
         }
         return 0xFF; // for now
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -533,6 +534,7 @@ void memory::write(uint16_t address, uint8_t content) {
                 // channel 4
                 case 0xff20:
                 apu.ch4.len_timer = content;
+                
                 break;
 
                 case 0xff21:

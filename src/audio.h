@@ -413,12 +413,13 @@ struct APU {
         }
 
         int tmr_period() {
+            int divisor;
             if (clock_divider()==0) {
-                return 8;
+                divisor= 8;
             } else {
-                return clock_divider()*16;
+                divisor= clock_divider()*16;
             }
-            return 0;
+            return divisor << clock_shift();
         }
 
         int initial_vol() {
