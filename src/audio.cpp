@@ -52,14 +52,17 @@ void APU::update(uint8_t cycles) {
 }
 
 void APU::push_sample() {
-    if (frame_sample_count < buffer_size) {
-
-        sample_buff[frame_sample_count] = mix();
-        frame_sample_count++;
+    if (frame_sample_count + 1 < buffer_size) {
+        int16_t l, r;
+        mix(l, r);
+        sample_buff[frame_sample_count]     = l;
+        sample_buff[frame_sample_count + 1] = r;
+        frame_sample_count += 2;
     }
 }
 
-int16_t APU::mix() {
+// audio.cpp
+void APU::mix(int16_t& left, int16_t& right) {
     uint8_t ch1_out = ch1.output();
     uint8_t ch2_out = ch2.output();
     uint8_t ch3_out = ch3.output();
@@ -68,14 +71,31 @@ int16_t APU::mix() {
     int16_t ch1_signal = (int16_t)ch1_out - 7;
     int16_t ch2_signal = (int16_t)ch2_out - 7;
     int16_t ch3_signal = (int16_t)ch3_out - 7;
-    int16_t ch4_signal = ((int16_t)ch4_out - 7);
+    int16_t ch4_signal = (int16_t)ch4_out - 7;
 
-    int32_t mixed = ch1_signal + ch2_signal + ch3_signal +ch4_signal;
+    int32_t left_mix=0,right_mix=0;
 
-    mixed *=125;
+    if (ch_left(1)) left_mix += ch1_signal;
+    if (ch_left(2)) left_mix+= ch2_signal;
+    if (ch_left(3)) left_mix += ch3_signal;
+    if (ch_left(4)) left_mix += ch4_signal;
 
-    if (mixed > 32767)  mixed = 32767;
-    if (mixed < -32768) mixed = -32768;
+    if (ch_right(1)) right_mix+= ch1_signal;
+    if (ch_right(2)) right_mix+= ch2_signal;
+    if (ch_right(3)) right_mix+= ch3_signal;
+    if (ch_right(4)) right_mix+= ch4_signal;
 
-    return (int16_t)mixed;
+    left_mix *= (left_vol()+1);
+    right_mix *= (right_vol()+1);
+
+    left_mix *= 50;
+    right_mix *= 50;
+
+    if (left_mix > 32767) left_mix = 32767;
+    if (left_mix < -32768) left_mix = -32768;
+    if (right_mix > 32767) right_mix = 32767;
+    if (right_mix < -32768) right_mix = -32768;
+
+    left  = (int16_t)left_mix;
+    right = (int16_t)right_mix;
 }

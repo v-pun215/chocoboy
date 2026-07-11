@@ -546,13 +546,26 @@ struct APU {
     channel_3 ch3;
     channel_4 ch4;
 
+    int left_vol()  {
+        return (master_volume_vin >> 4) & 0x07;
+    }
+    int right_vol() { 
+        return master_volume_vin & 0x07; 
+    }
+    bool ch_left(int ch)  {
+        return (sound_panning >> (4 + (ch-1))) & 1;
+    }
+    bool ch_right(int ch) {
+        return (sound_panning >> (ch-1)) & 1;
+    }
+
     int frame_squencer_cycles = 0;
     int frame_squencer_step=0;
 
     float cycle_add=0.0f;
     const float cyclers_per_sample=4194304.0f/44100.0f;
 
-    static const int buffer_size = 4096;
+    static const int buffer_size = 4096*2;
     int frame_sample_count = 0;
     int16_t sample_buff[buffer_size] = {};
 
@@ -564,7 +577,7 @@ struct APU {
 
     void update(uint8_t cycles);
     void push_sample();
-    int16_t mix();
+    void mix(int16_t& left, int16_t& right);
 
 
 };

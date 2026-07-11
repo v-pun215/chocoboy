@@ -44,6 +44,15 @@ struct memory {
     uint8_t latch_rtc_dh = 0; // upper 1 bit of day counter, carry bit, halt flag
     uint8_t rtc_latch =0;
 
+    // save
+    string save_path;
+    bool has_battery();
+    void saveGame(string path);
+    void loadGame(string path);
+    bool sram_dirty = false;
+    chrono::steady_clock::time_point last_sram_write = chrono::steady_clock::now();
+    void flush_save_if_dirty();
+
     chrono::time_point<chrono::system_clock> last_time = chrono::system_clock::now();
 
 

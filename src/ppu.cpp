@@ -31,7 +31,7 @@ void PPU::initSDL(memory& mem) {
     // audio
     want.freq = 44100;
     want.format = AUDIO_S16SYS;
-    want.channels=1;
+    want.channels=2;
     want.samples=512;
     want.callback = nullptr;
     dev = SDL_OpenAudioDevice(nullptr, 0, &want, &have, 0);
@@ -59,6 +59,7 @@ void PPU::cycleSDL(memory& mem) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) {
+            if (!mem.sram_dirty) mem.saveGame(mem.save_path);
             exit(0);
         } else if (event.type == SDL_KEYDOWN) {
             if (event.key.repeat == 0) {
@@ -228,7 +229,8 @@ void PPU::update(uint8_t cycles, memory& mem, cpu& cpu, bool& paused, bool& step
 
                 //mem.debugging.render_debugger(mem, cpu, paused, step);
                 // audio
-                
+                mem.update_currn_rtc();
+                mem.flush_save_if_dirty();
                 SDL_QueueAudio(dev, mem.apu.sample_buff, mem.apu.frame_sample_count*sizeof(int16_t));
                 mem.apu.frame_sample_count=0;
                 
