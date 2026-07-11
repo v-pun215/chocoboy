@@ -34,6 +34,9 @@ struct APU {
         int sweep_tmr = 0;
         bool sweep_enabled=false;
         bool dac_enabled=false;
+        bool sweep_negate_since_trigger = false;
+
+        
 
         int get_sweep_pace() {
             return (sweep >> 4) & 7;
@@ -93,20 +96,22 @@ struct APU {
         int calc_sweep_target() {
             int offset = shadow_period >> get_sweep_step();
             int new_period;
-            if (get_sweep_direction() ==0) {
-                new_period = shadow_period+offset;
+            if (get_sweep_direction() == 0) {
+                new_period=shadow_period+offset;
             } else {
-                new_period = shadow_period-offset;
+                new_period=shadow_period-offset;
+                sweep_negate_since_trigger=true;
             }
 
-            if (new_period>2047) {
-                enabled=false;
+            if (new_period > 2047) {
+                enabled = false;
             }
             return new_period;
         }
 
         void trigger(int step) {
             enabled=true;
+            sweep_negate_since_trigger=false;
             frequency_timer=(2048-get_period()) * 4;
             currn_vol = initial_vol();
             envelope_tmr = envelope_period();
@@ -358,7 +363,18 @@ struct APU {
         }
 
         void trigger(int step) {
-
+            if (enabled) {
+                int byte_index = wave_pos/2;
+                if (byte_index<4) {
+                    wave_ram[0] = wave_ram[byte_index];
+                } else {
+                    int base = (byte_index/4)*4;
+                    wave_ram[0] = wave_ram[base];
+                    wave_ram[1] = wave_ram[base+1];
+                    wave_ram[2] = wave_ram[base+2];
+                    wave_ram[3] = wave_ram[base+3];
+                }
+            }
 
             enabled = true;
             wave_pos=0;
@@ -578,6 +594,8 @@ struct APU {
     void update(uint8_t cycles);
     void push_sample();
     void mix(int16_t& left, int16_t& right);
+
+    void clock_frame_squencer();
 
 
 };

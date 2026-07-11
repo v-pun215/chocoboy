@@ -15,8 +15,13 @@ struct timer {
     uint8_t TMA = 0;
     uint8_t TAC = 0;
 
-    int div_clocksum = 0;
-    int timer_clocksum = 0;
-    void handle_timer(uint8_t cycle, uint8_t& IF);
+    int div_counter = 0;
+    uint8_t get_DIV() const {
+        return div_counter >> 8;
+    }
+
+    int handle_timer(uint8_t cycle, uint8_t& IF);
+
+    bool reset_div(uint8_t& IF); // returns true if reset cros frame-squencer edge
 
 };

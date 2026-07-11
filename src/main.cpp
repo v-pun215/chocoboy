@@ -132,9 +132,13 @@ int main(int argc, char* argv[]) {
         all_cycles+=cycles;
         cycles_per_second+=cycles;
         gb_cpu.all_cycles+=cycles;
-        mem.tmr.handle_timer(cycles, mem.IF);
-        mem.ppu.update(cycles, mem, gb_cpu, paused, step);
+        int fs_clucks = mem.tmr.handle_timer(cycles, mem.IF);
         mem.apu.update(cycles);
+        for (int i = 0; i < fs_clucks; i++) {
+            mem.apu.clock_frame_squencer();
+        }
+        mem.ppu.update(cycles, mem, gb_cpu, paused, step);
+
         gb_cpu.handle_interrupts(mem);
 
 

@@ -140,7 +140,7 @@ uint8_t memory::read(uint16_t address) {
             return IF;
 
             case 0xFF04:
-            return tmr.DIV;
+            return tmr.get_DIV();
 
             case 0xFF05:
             return tmr.TIMA;
@@ -237,6 +237,9 @@ uint8_t memory::read(uint16_t address) {
             return (apu.ch3.period_high_ctrl & 0x40) | 0xBF;
 
             case 0xFF30 ... 0xFF3F:
+            if (apu.ch3.enabled) {
+                return apu.ch3.wave_ram[apu.ch3.wave_pos/2];
+            }
             return apu.ch3.wave_ram[address-0xFF30];
 
             // channel 4
@@ -415,7 +418,23 @@ void memory::write(uint16_t address, uint8_t content) {
         } else if (address >= 0xFF10 && address <= 0xFF26) {
             //audio
             if ((apu.audio_master_control & 0x80) == 0 && address != 0xFF26) {
-                // audio off
+                switch (address) {
+                    case 0xff11:
+                    apu.ch1.len_counter = 64 - (content&0x3f);
+                    break;
+
+                    case 0xff16:
+                    apu.ch2.len_counter = 64 - (content&0x3f);
+                    break;
+
+                    case 0xff1b:
+                    apu.ch3.len_counter = 256 - content;
+                    break;
+
+                    case 0xff20:
+                    apu.ch4.len_counter = 64 - (content&0x3f);
+                    break;
+                }
                 return; 
             }
             switch (address) {
@@ -423,10 +442,16 @@ void memory::write(uint16_t address, uint8_t content) {
                 apu.sound_panning = content;
                 break;
 
-                case 0xff10:
-                // nr10
-                apu.ch1.sweep = content;
-                break;
+                case 0xff10: {
+                    // nr10
+                    bool old_neg = (apu.ch1.sweep >> 3) & 1;
+                    apu.ch1.sweep = content;
+                    bool new_neg = (content >> 3) & 1;
+                    if (old_neg && !new_neg && apu.ch1.sweep_negate_since_trigger) {
+                        apu.ch1.enabled = false;
+                    }
+                    break;
+                }
 
                 case 0xff11:
                 apu.ch1.len_duty = content;
@@ -466,24 +491,33 @@ void memory::write(uint16_t address, uint8_t content) {
                 }
 
 
-                case 0xFF26:
-                apu.audio_master_control = content;
-                if ((content & 0x80) == 0) {
-                    // reset state
-                    apu.ch1.enabled = false;
-                    apu.ch2.enabled = false;
-                    apu.ch3.enabled = false;
-                    apu.ch4.enabled = false;
+                case 0xFF26: {
+                    bool was_on = (apu.audio_master_control & 0x80) != 0;
+                    bool now_on = (content & 0x80) != 0;
+                    apu.audio_master_control = content;
 
-                    apu.ch1.sweep = 0; apu.ch1.len_duty = 0; apu.ch1.vol_env = 0; apu.ch1.period_low = 0; apu.ch1.period_high_ctrl = 0;
-                    apu.ch2.len_duty = 0; apu.ch2.vol_env = 0; apu.ch2.period_low = 0; apu.ch2.period_high_ctrl = 0;
-                    apu.ch3.dac = 0; apu.ch3.len_timer = 0; apu.ch3.output_level = 0; apu.ch3.period_low = 0; apu.ch3.period_high_ctrl = 0;
-                    apu.ch4.len_timer = 0; apu.ch4.vol_env = 0; apu.ch4.freq_rand = 0; apu.ch4.control = 0;
-                    
-                    apu.master_volume_vin = 0;
-                    apu.sound_panning = 0;
+                    if (!now_on) {
+                        apu.ch1.enabled = false;
+                        apu.ch2.enabled = false;
+                        apu.ch3.enabled = false;
+                        apu.ch4.enabled = false;
+                        apu.ch1.sweep = 0; apu.ch1.len_duty = 0; apu.ch1.vol_env = 0; apu.ch1.period_low = 0; apu.ch1.period_high_ctrl = 0;
+                        apu.ch2.len_duty = 0; apu.ch2.vol_env = 0; apu.ch2.period_low = 0; apu.ch2.period_high_ctrl = 0;
+                        apu.ch3.dac = 0; apu.ch3.len_timer = 0; apu.ch3.output_level = 0; apu.ch3.period_low = 0; apu.ch3.period_high_ctrl = 0;
+                        apu.ch4.len_timer = 0; apu.ch4.vol_env = 0; apu.ch4.freq_rand = 0; apu.ch4.control = 0;
+                        apu.master_volume_vin = 0;
+                        apu.sound_panning = 0;
+                    } else if (!was_on && now_on) {
+                        // 0 to 1 trans only
+                        apu.frame_squencer_step = 0;
+                        apu.ch1.duty_pos = 0;
+                        apu.ch2.duty_pos = 0;
+                        apu.ch3.wave_pos = 0;
+                        apu.ch3.currn_sample = 0;
+                    }
+
+                    break;
                 }
-                break;
 
                 case 0xFF16:
                 apu.ch2.len_duty = content;
@@ -611,9 +645,16 @@ void memory::write(uint16_t address, uint8_t content) {
             }
         } else if (address >= 0xFF30 && address <= 0xFF3F) {
             // wave pattern (ch3)
-            apu.ch3.wave_ram[address-0xff30] = content;
+            if (apu.ch3.enabled) {
+                apu.ch3.wave_ram[apu.ch3.wave_pos/2]=content;
+            } else {
+                apu.ch3.wave_ram[address-0xff30] = content;
+            }
         } else if (address == 0xFF04) {
-            tmr.DIV = 0;
+            // div
+            if (tmr.reset_div(IF)) {
+                apu.clock_frame_squencer();
+            }
         } else if (address == 0xFF05) {
             tmr.TIMA = content;
         } else if (address==0xFF06) {

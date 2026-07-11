@@ -3,6 +3,33 @@
 #include <SDL.h>
 #include <math.h>
 
+void APU::clock_frame_squencer() {
+    switch (frame_squencer_step%8) {
+        case 0:
+        case 4:
+        ch1.tick_length();
+        ch2.tick_length();
+        ch3.tick_length();
+        ch4.tick_length();
+        break;
+
+        case 2:
+        case 6:
+        ch1.tick_length();
+        ch1.tick_sweep();
+        ch2.tick_length();
+        ch3.tick_length();
+        ch4.tick_length();
+        break;
+
+        case 7:
+        ch1.tick_env();
+        ch2.tick_env();
+        ch4.tick_env();
+        break;
+    }
+    frame_squencer_step++;
+}
 
 void APU::update(uint8_t cycles) {
     bool apu_enabled = (audio_master_control>>7)&1;
@@ -13,36 +40,6 @@ void APU::update(uint8_t cycles) {
         ch3.tick_freq_tmr(cycles);
         ch4.tick_freq_tmr(cycles);
 
-        //512hz = 8192 cycles
-        frame_squencer_cycles+=cycles;
-        while(frame_squencer_cycles>=8192) {
-            frame_squencer_cycles-=8192;
-            switch (frame_squencer_step%8) {
-                case 0:
-                case 4:
-                ch1.tick_length();
-                ch2.tick_length();
-                ch3.tick_length();
-                ch4.tick_length();
-                break;
-
-                case 2:
-                case 6:
-                ch1.tick_length();
-                ch1.tick_sweep();
-                ch2.tick_length();
-                ch3.tick_length();
-                ch4.tick_length();
-                break;
-
-                case 7:
-                ch1.tick_env();
-                ch2.tick_env();
-                ch4.tick_env();
-                break;
-            }
-            frame_squencer_step++;
-        }
     }
     cycle_add+=cycles;
     while(cycle_add>=cyclers_per_sample) {
@@ -88,8 +85,8 @@ void APU::mix(int16_t& left, int16_t& right) {
     left_mix *= (left_vol()+1);
     right_mix *= (right_vol()+1);
 
-    left_mix *= 50;
-    right_mix *= 50;
+    left_mix *= 16;
+    right_mix *= 16;
 
     if (left_mix > 32767) left_mix = 32767;
     if (left_mix < -32768) left_mix = -32768;
