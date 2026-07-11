@@ -203,7 +203,7 @@ uint8_t memory::read(uint16_t address) {
             // channel 1
             case 0xff10:
             //nr10
-            return apu.ch1.sweep;
+            return apu.ch1.sweep | 0x80;
 
             case 0xff11:
             return apu.ch1.len_duty | 0x3f;
@@ -215,7 +215,7 @@ uint8_t memory::read(uint16_t address) {
             return 0xff;
 
             case 0xff14:
-            return apu.ch1.period_high_ctrl | 0xbf;
+            return (apu.ch1.period_high_ctrl & 0x40) | 0xBF;
             
             // channel 2 
             case 0xff16:
@@ -228,30 +228,30 @@ uint8_t memory::read(uint16_t address) {
             return 0xff; // write only
 
             case 0xff19:
-            return apu.ch2.period_high_ctrl | 0xbf;
+            return (apu.ch2.period_high_ctrl & 0x40) | 0xbf;
 
             // channel 3
             case 0xff1a:
-            return apu.ch3.dac;
+            return apu.ch3.dac | 0x7F;
 
             case 0xff1b:
             return 0xFF; // write only
 
             case 0xff1c:
-            return apu.ch3.output_level;
+            return apu.ch3.output_level | 0x9F;
 
             case 0xff1d:
             return 0xff; // write only
 
             case 0xff1e:
-            return apu.ch3.period_high_ctrl | 0xbf;
+            return (apu.ch3.period_high_ctrl & 0x40) | 0xBF;
 
             case 0xFF30 ... 0xFF3F:
             return apu.ch3.wave_ram[address-0xFF30];
 
             // channel 4
             case 0xff20:
-            return apu.ch4.len_timer;
+            return 0xFF;
 
             case 0xff21:
             return apu.ch4.vol_env;
@@ -260,7 +260,22 @@ uint8_t memory::read(uint16_t address) {
             return apu.ch4.freq_rand;
 
             case 0xff23:
-            return (apu.ch4.control >> 6) & 0x01;
+            return (apu.ch4.control & 0x40) | 0xBF;
+
+            case 0xff26: {
+                uint8_t status = apu.audio_master_control & 0x80;
+                if (apu.ch4.enabled) status |= 0x08;
+                if (apu.ch3.enabled) status |= 0x04;
+                if (apu.ch2.enabled) status |= 0x02;
+                if (apu.ch1.enabled) status |= 0x01;
+                return status | 0x70;
+            }
+
+            case 0xFF24:
+            return apu.master_volume_vin;
+
+            case 0xFF25:
+            return apu.sound_panning;
         }
         return 0xFF; // for now
     } else if (address >= 0xFF80 && address <= 0xFFFE) { // HRAM
@@ -451,8 +466,13 @@ void memory::write(uint16_t address, uint8_t content) {
             IF = content;
         } else if (address >= 0xFF10 && address <= 0xFF26) {
             //audio
+            if ((apu.audio_master_control & 0x80) == 0 && address != 0xFF26) {
+                // audio off
+                return; 
+            }
             switch (address) {
                 case 0xFF25:
+                apu.sound_panning = content;
                 break;
 
                 case 0xff10:
@@ -462,45 +482,97 @@ void memory::write(uint16_t address, uint8_t content) {
 
                 case 0xff11:
                 apu.ch1.len_duty = content;
+                apu.ch1.len_counter = 64 - (content & 0x3F);
                 break;
 
                 case 0xff12:
                 apu.ch1.vol_env = content;
+                apu.ch1.dac_enabled = (content & 0xf8) !=0;
+                if (!apu.ch1.dac_enabled) {
+                    apu.ch1.enabled = false;
+                }
                 break;
 
                 case 0xff13:
                 apu.ch1.period_low = content;
                 break;
 
-                case 0xff14:
-                apu.ch1.period_high_ctrl = content;
-                if ((content >> 7) & 1) {
-                    apu.ch1.trigger();
+                case 0xff14: {
+                    bool prev_len_enable = (apu.ch1.period_high_ctrl & 0x40);
+                    apu.ch1.period_high_ctrl = content;
+                    bool new_len_enable = (apu.ch1.period_high_ctrl & 0x40);
+
+                    if (!prev_len_enable && new_len_enable && (apu.frame_squencer_step % 2 != 0)) {
+                        if (apu.ch1.len_counter > 0) {
+                            apu.ch1.len_counter--;
+                            if (apu.ch1.len_counter == 0) {
+                                apu.ch1.enabled = false;
+                            }
+                        }
+                    }
+
+                    if ((content >> 7) & 0x1) {
+                        apu.ch1.trigger(apu.frame_squencer_step);
+                    }
+                    break;
                 }
-                break;
 
 
                 case 0xFF26:
-                apu.audio_master_control = content & 0x80;
+                apu.audio_master_control = content;
+                if ((content & 0x80) == 0) {
+                    // reset state
+                    apu.ch1.enabled = false;
+                    apu.ch2.enabled = false;
+                    apu.ch3.enabled = false;
+                    apu.ch4.enabled = false;
+
+                    apu.ch1.sweep = 0; apu.ch1.len_duty = 0; apu.ch1.vol_env = 0; apu.ch1.period_low = 0; apu.ch1.period_high_ctrl = 0;
+                    apu.ch2.len_duty = 0; apu.ch2.vol_env = 0; apu.ch2.period_low = 0; apu.ch2.period_high_ctrl = 0;
+                    apu.ch3.dac = 0; apu.ch3.len_timer = 0; apu.ch3.output_level = 0; apu.ch3.period_low = 0; apu.ch3.period_high_ctrl = 0;
+                    apu.ch4.len_timer = 0; apu.ch4.vol_env = 0; apu.ch4.freq_rand = 0; apu.ch4.control = 0;
+                    
+                    apu.master_volume_vin = 0;
+                    apu.sound_panning = 0;
+                }
                 break;
+
                 case 0xFF16:
                 apu.ch2.len_duty = content;
+                apu.ch2.len_counter = 64 - (content & 0x3F);
                 break;
 
                 case 0xff17:
                 apu.ch2.vol_env = content;
+                apu.ch2.dac_enabled = (content & 0xF8) !=0; 
+                if (!apu.ch2.dac_enabled) {
+                    apu.ch2.enabled = false;
+                }
                 break;
 
                 case 0xff18:
                 apu.ch2.period_low = content;
                 break;
 
-                case 0xff19:
-                apu.ch2.period_high_ctrl = content;
-                if (content&0x80) {
-                    apu.ch2.trigger();
+                case 0xff19: {
+                    bool prev_len_enable = (apu.ch2.period_high_ctrl & 0x40);
+                    apu.ch2.period_high_ctrl = content;
+                    bool new_len_enable = (apu.ch2.period_high_ctrl & 0x40);
+
+                    if (!prev_len_enable && new_len_enable && (apu.frame_squencer_step % 2 != 0)) {
+                        if (apu.ch2.len_counter > 0) {
+                            apu.ch2.len_counter--;
+                            if (apu.ch2.len_counter == 0) {
+                                apu.ch2.enabled = false;
+                            }
+                        }
+                    }
+
+                    if ((content >> 7) & 0x1) {
+                        apu.ch2.trigger(apu.frame_squencer_step);
+                    }
+                    break;
                 }
-                break;
                 // channel 3
                 case 0xff1a:
                 apu.ch3.dac = content;
@@ -509,10 +581,14 @@ void memory::write(uint16_t address, uint8_t content) {
                 } else {
                     apu.ch3.dac_enabled=false;
                 }
+                if (!apu.ch3.dac_enabled) {
+                    apu.ch3.enabled = false;
+                }
                 break;
 
                 case 0xff1b:
                 apu.ch3.len_timer = content;
+                apu.ch3.len_counter = 256 - content;
                 break;
 
                 case 0xff1c:
@@ -524,17 +600,30 @@ void memory::write(uint16_t address, uint8_t content) {
                 apu.ch3.period_low=content;
                 break;
 
-                case 0xff1e:
-                apu.ch3.period_high_ctrl = content;
-                if ((content >> 7) & 1) {
-                    apu.ch3.trigger();
+                case 0xff1e: {
+                    bool prev_len_enable = (apu.ch3.period_high_ctrl & 0x40);
+                    apu.ch3.period_high_ctrl = content;
+                    bool new_len_enable = (apu.ch3.period_high_ctrl & 0x40);
+
+                    if (!prev_len_enable && new_len_enable && (apu.frame_squencer_step % 2 != 0)) {
+                        if (apu.ch3.len_counter > 0) {
+                            apu.ch3.len_counter--;
+                            if (apu.ch3.len_counter == 0) {
+                                apu.ch3.enabled = false;
+                            }
+                        }
+                    }
+
+                    if ((content >> 7) & 0x1) {
+                        apu.ch3.trigger(apu.frame_squencer_step);
+                    }
+                    break;
                 }
-                break;
 
                 // channel 4
                 case 0xff20:
                 apu.ch4.len_timer = content;
-                
+                apu.ch4.len_counter = 64 - (content & 0x3F);
                 break;
 
                 case 0xff21:
@@ -549,11 +638,28 @@ void memory::write(uint16_t address, uint8_t content) {
                 apu.ch4.freq_rand = content;
                 break;
 
-                case 0xff23:
-                apu.ch4.control = content;
-                if ((content >> 7) & 0x1) {
-                    apu.ch4.trigger();
+                case 0xff23: {
+                    bool prev_len_enable = (apu.ch4.control & 0x40);
+                    apu.ch4.control = content;
+                    bool new_len_enable = (apu.ch4.control & 0x40);
+
+                    if (!prev_len_enable && new_len_enable && (apu.frame_squencer_step % 2 != 0)) {
+                        if (apu.ch4.len_counter > 0) {
+                            apu.ch4.len_counter--;
+                            if (apu.ch4.len_counter == 0) {
+                                apu.ch4.enabled = false;
+                            }
+                        }
+                    }
+                    if ((content >> 7) & 0x1) {
+                        apu.ch4.trigger(apu.frame_squencer_step);
+                    }
+                    break;
                 }
+                
+                case 0xFF24:
+                apu.master_volume_vin = content;
+                break;
             }
         } else if (address >= 0xFF30 && address <= 0xFF3F) {
             // wave pattern (ch3)

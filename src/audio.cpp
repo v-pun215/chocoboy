@@ -68,7 +68,7 @@ int16_t APU::mix() {
     int16_t ch1_signal = (int16_t)ch1_out - 7;
     int16_t ch2_signal = (int16_t)ch2_out - 7;
     int16_t ch3_signal = (int16_t)ch3_out - 7;
-    int16_t ch4_signal = (int16_t)ch4_out - 7;
+    int16_t ch4_signal = ((int16_t)ch4_out - 7);
 
     int32_t mixed = ch1_signal + ch2_signal + ch3_signal +ch4_signal;
 

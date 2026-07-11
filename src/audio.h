@@ -33,6 +33,7 @@ struct APU {
         int shadow_period = 0;
         int sweep_tmr = 0;
         bool sweep_enabled=false;
+        bool dac_enabled=false;
 
         int get_sweep_pace() {
             return (sweep >> 4) & 7;
@@ -76,7 +77,7 @@ struct APU {
         }
 
         uint8_t output() {
-            if (!enabled) {
+            if (!enabled || !dac_enabled) {
                 return 0;
             }
             const uint8_t duty_table[4][8] = {
@@ -104,13 +105,20 @@ struct APU {
             return new_period;
         }
 
-        void trigger() {
+        void trigger(int step) {
             enabled=true;
             frequency_timer=(2048-get_period()) * 4;
             currn_vol = initial_vol();
             envelope_tmr = envelope_period();
+            if (envelope_tmr == 0) {
+                envelope_tmr = 8;
+            }
             if (len_counter==0) {
                 len_counter=64;
+
+                if (((period_high_ctrl >> 6) & 1) && (step%2!=0)) {
+                    len_counter--;
+                }
             }
             // dac check
             if ((vol_env & 0xF8) == 0) {
@@ -147,8 +155,13 @@ struct APU {
                     if (new_period <= 2047 && (get_sweep_step() >0)) {
                         shadow_period=new_period;
                         write_period(new_period);
+                        
+
 
                         calc_sweep_target();
+
+                    } else if (new_period>2047) {
+                        enabled = false;
                     }
                 }
             }
@@ -203,6 +216,7 @@ struct APU {
         int currn_vol = 0;
         int envelope_tmr = 0;
         int len_counter = 0;
+        bool dac_enabled = false;
 
 
         int get_period() {
@@ -230,7 +244,7 @@ struct APU {
         }
 
         uint8_t output() {
-            if (!enabled) {
+            if (!enabled || !dac_enabled) {
                 return 0;
             }
             const uint8_t duty_table[4][8] = {
@@ -243,13 +257,20 @@ struct APU {
             return duty_table[get_duty_cyc_index()][duty_pos] ? currn_vol : 0;
         }
 
-        void trigger() {
+        void trigger(int step) {
             enabled=true;
             frequency_timer=(2048-get_period()) * 4;
             currn_vol = initial_vol();
             envelope_tmr = envelope_period();
+            if (envelope_tmr == 0) {
+                envelope_tmr = 8;
+            }
             if (len_counter==0) {
                 len_counter=64;
+
+                if (((period_high_ctrl >> 6) & 1) && (step%2!=0)) {
+                    len_counter--;
+                }
             }
             // dac check
             if ((vol_env & 0xF8) == 0) {
@@ -336,16 +357,21 @@ struct APU {
             return 0;
         }
 
-        void trigger() {
-            if (!dac_enabled) {
-                return;
-            }
+        void trigger(int step) {
+
 
             enabled = true;
             wave_pos=0;
             frequency_tmr= (2048- get_period()) * 2;
             if (len_counter==0) {
-                len_counter=256;
+                len_counter = 256;
+
+                if (((period_high_ctrl >> 6) & 1) && (step % 2 != 0)) {
+                    len_counter--; 
+                }
+            }
+            if (!dac_enabled) {
+                enabled = false;
             }
         }
 
@@ -438,18 +464,25 @@ struct APU {
             return (control >> 6) & 0x1;
         }
 
-        void trigger() {
-            if (!dac_enabled) {
-                return;
-            }
+        void trigger(int step) {
             enabled = true;
             lfsr = 0x7fff;
             frequency_timer = tmr_period();
             currn_volume = initial_vol();
             envelope_tmr = envelope_period();
+            if (envelope_tmr == 0) {
+                envelope_tmr = 8;
+            }
 
             if (len_counter==0) {
-                len_counter = 64;
+                len_counter=64;
+
+                if (((control >> 6) & 1) && (step%2!=0)) {
+                    len_counter--;
+                }
+            }
+            if (!dac_enabled) {
+                enabled = false;
             }
         }
 
@@ -525,6 +558,9 @@ struct APU {
 
     int buffer_w_pos = 0;
     int buffer_r_pos = 0;
+
+    float hpf_prev_in = 0.0f;
+    float hpf_prev_out = 0.0f;
 
     void update(uint8_t cycles);
     void push_sample();
