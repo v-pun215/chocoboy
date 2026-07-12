@@ -1,0 +1,57 @@
+name: Build Native
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Install Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsdl2-dev g++ make
+
+    - name: Install Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: brew install sdl2
+
+    - name: Setup MSYS2 (Windows)
+      if: runner.os == 'Windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          make
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-sdl2
+
+    - name: Build
+      if: runner.os != 'Windows'
+      run: make
+
+    - name: Build (Windows)
+      if: runner.os == 'Windows'
+      shell: msys2 {0}
+      run: make
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: chocoboy-${{ runner.os }}
+        path: output/chocoboy*
+        retention-days: 7

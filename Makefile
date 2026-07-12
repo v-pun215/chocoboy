@@ -11,18 +11,29 @@ WASM_OUT = web
 
 INCLUDES = -Iinclude/imgui -Iimgui
 
-ifeq ($(UNAME_S),Darwin)
-    CXX = clang++
-    CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES) -I/opt/homebrew/include/SDL2
-    LDFLAGS = -L/opt/homebrew/lib -lSDL2
-else ifeq ($(UNAME_S),Linux)
-    CXX = /usr/bin/g++
-    CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES) -I/usr/include/SDL2
-    LDFLAGS = -lSDL2
-else
+ifeq ($(OS),Windows_NT)
+    # Windows (MinGW/MSYS2)
     CXX = g++
     CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES)
-    LDFLAGS = 
+    # Windows needs SDL2main and mingw32
+    LDFLAGS = -lmingw32 -lSDL2main -lSDL2
+    # Ensure Windows outputs an .exe
+    TARGET = chocoboy.exe
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Darwin)
+        # macOS
+        CXX = clang++
+        CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES) -I/opt/homebrew/include/SDL2
+        LDFLAGS = -L/opt/homebrew/lib -lSDL2
+        TARGET = chocoboy
+    else ifeq ($(UNAME_S),Linux)
+        # Linux
+        CXX = g++
+        CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES) -I/usr/include/SDL2
+        LDFLAGS = -lSDL2
+        TARGET = chocoboy
+    endif
 endif
 
 # Separate source tracking
