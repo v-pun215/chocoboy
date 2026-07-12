@@ -12,12 +12,9 @@ WASM_OUT = web
 INCLUDES = -Iinclude/imgui -Iimgui
 
 ifeq ($(OS),Windows_NT)
-    # Windows (MinGW/MSYS2)
     CXX = g++
-    CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES)
-    # Windows needs SDL2main and mingw32
+    CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES) -I/mingw64/include/SDL2
     LDFLAGS = -lmingw32 -lSDL2main -lSDL2
-    # Ensure Windows outputs an .exe
     TARGET = chocoboy.exe
 else
     UNAME_S := $(shell uname -s)
