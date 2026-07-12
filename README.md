@@ -4,7 +4,7 @@ A Game Boy (DMG) emulator written in C++ (WIP)
 ## Usage
 Download the latest release from the [Releases page](https://github.com/v-pun215/chocoboy/releases/latest).
 
-Obtain a boot ROM from [here](https://gbdev.gg8.se/files/roms/bootroms/dmg_boot.bin).
+Obtain a boot ROM from [here](https://gbdev.gg8.se/files/roms/bootroms/) (dmg_boot.bin).
 
 Run a ROM using
 `./path/to/chocoboy path/to/boot_rom path/to/rom.gb`
