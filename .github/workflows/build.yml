@@ -46,12 +46,20 @@ jobs:
 
     - name: Build (Windows)
       if: runner.os == 'Windows'
-      shell: msys2 {0}
-      run: make
+      shell: msys2 {0} 
+      run: |
+        make
+        # Copy required DLLs next to the executable so it can run
+        cp /mingw64/bin/SDL2.dll output/
+        cp /mingw64/bin/libstdc++-6.dll output/
+        cp /mingw64/bin/libgcc_s_seh-1.dll output/
+        cp /mingw64/bin/libwinpthread-1.dll output/
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: chocoboy-${{ runner.os }}
-        path: output/chocoboy*
+        path: |
+          output/chocoboy*
+          output/*.dll
         retention-days: 7

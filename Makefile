@@ -14,7 +14,7 @@ INCLUDES = -Iinclude/imgui -Iimgui
 ifeq ($(OS),Windows_NT)
     CXX = g++
     CXXFLAGS = $(CXX_STD) $(DEBUG_FLAGS) $(INCLUDES) -I/mingw64/include/SDL2
-    LDFLAGS = -lmingw32 -lSDL2main -lSDL2
+    LDFLAGS = -mconsole -lmingw32 -lSDL2main -lSDL2
     TARGET = chocoboy.exe
 else
     UNAME_S := $(shell uname -s)
