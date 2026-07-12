@@ -15,13 +15,6 @@
 #include <imgui_impl_sdlrenderer2.h>
 using namespace std;
 
-
-
-
-
-
-
-
 void doctor_print(cpu& gb_cpu, memory& mem) {
     cout << uppercase << hex
         << "A:" << setw(2) << setfill('0') << (int)gb_cpu.registers[gb_cpu.A]
@@ -44,19 +37,20 @@ void doctor_print(cpu& gb_cpu, memory& mem) {
 
 int main(int argc, char* argv[]) {
     bool doctor = false;
-    if (argc <2) {
-        cout << "USAGE: chocoboy ROM_PATH [SERIAL/DOCTOR]\n";
+    if (argc <3) {
+        cout << "USAGE: chocoboy BOOT_ROM_PATH ROM_PATH [SERIAL/DOCTOR]\n";
         exit(EXIT_FAILURE);
     }
     if (argc>2) {
-        std::string mode = argv[2]; // Converts char* to std::string for safe comparison
+        std::string mode = argv[2];
         if (mode == "SERIAL") {
             serial = true;
         } else if (mode == "DOCTOR") {
             doctor = true;
         }
     }
-    auto rom_path = argv[1];
+    auto boot_rom = argv[1];
+    auto rom_path = argv[2];
     
     cpu gb_cpu;
     memory mem;
@@ -75,7 +69,7 @@ int main(int argc, char* argv[]) {
     gb_cpu.flag_n=0;
     gb_cpu.flag_h=1;
     gb_cpu.flag_c=1;*/
-    mem.boot("./roms/dmg_boot.bin");
+    mem.boot(boot_rom);
     mem.loadROM(rom_path);
     mem.ppu.initSDL(mem);
     //PPU ppu;

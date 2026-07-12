@@ -104,6 +104,7 @@ void PPU::cycleSDL(memory& mem) {
                     mem.joy.start = true;
                     mem.IF |= 0x10;
                     break;
+
                 }
             }
         } else if (event.type == SDL_KEYUP) {
@@ -139,6 +140,8 @@ void PPU::cycleSDL(memory& mem) {
                 case SDLK_l:
                 mem.joy.start = false;
                 break;
+
+
             }
         }
         //ImGui_ImplSDL2_ProcessEvent(&event);

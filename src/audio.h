@@ -17,6 +17,8 @@ struct APU {
     // NR50
     uint8_t master_volume_vin = 0; 
 
+
+
     struct channel_1 {
         uint8_t sweep = 0; // nr10
         uint8_t len_duty = 0; // nr11
@@ -35,6 +37,7 @@ struct APU {
         bool sweep_enabled=false;
         bool dac_enabled=false;
         bool sweep_negate_since_trigger = false;
+        bool mute = false;
 
         
 
@@ -80,7 +83,7 @@ struct APU {
         }
 
         uint8_t output() {
-            if (!enabled || !dac_enabled) {
+            if (!enabled || !dac_enabled || mute) {
                 return 0;
             }
             const uint8_t duty_table[4][8] = {
@@ -221,6 +224,7 @@ struct APU {
         int currn_vol = 0;
         int envelope_tmr = 0;
         int len_counter = 0;
+        bool mute = false;
         bool dac_enabled = false;
 
 
@@ -249,7 +253,7 @@ struct APU {
         }
 
         uint8_t output() {
-            if (!enabled || !dac_enabled) {
+            if (!enabled || !dac_enabled || mute) {
                 return 0;
             }
             const uint8_t duty_table[4][8] = {
@@ -333,6 +337,7 @@ struct APU {
         int frequency_tmr = 0;
         int wave_pos = 0;
         int currn_sample = 0;
+        bool mute = false;
         int len_counter = 0;
 
         int get_period() {
@@ -417,7 +422,7 @@ struct APU {
         }
 
         uint8_t output() {
-            if (!enabled) {
+            if (!enabled || mute) {
                 return 0;
             }
             if (!dac_enabled) {
@@ -440,6 +445,7 @@ struct APU {
         int lfsr = 0;
         int currn_volume = 0;
         int envelope_tmr = 0;
+        bool mute = false;
         int len_counter = 0;
 
         int clock_shift() {
@@ -544,7 +550,7 @@ struct APU {
         }
 
         uint8_t output() {
-            if (!enabled || !dac_enabled) {
+            if (!enabled || !dac_enabled || mute) {
                 return 0;
             }
             if ((lfsr & 0x1 )== 0) {
@@ -588,8 +594,12 @@ struct APU {
     int buffer_w_pos = 0;
     int buffer_r_pos = 0;
 
-    float hpf_prev_in = 0.0f;
-    float hpf_prev_out = 0.0f;
+    float hpf_prev_in_l = 0.0f, hpf_prev_out_l = 0.0f;
+    float hpf_prev_in_r = 0.0f, hpf_prev_out_r = 0.0f;
+
+    int64_t acc1 = 0, acc2 = 0, acc3 = 0, acc4 = 0;
+    int acc_n = 0;
+
 
     void update(uint8_t cycles);
     void push_sample();

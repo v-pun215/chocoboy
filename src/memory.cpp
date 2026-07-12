@@ -518,7 +518,7 @@ void memory::write(uint16_t address, uint8_t content) {
 
                     break;
                 }
-
+                // channel 2
                 case 0xFF16:
                 apu.ch2.len_duty = content;
                 apu.ch2.len_counter = 64 - (content & 0x3F);
